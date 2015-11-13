@@ -1,0 +1,53 @@
+@import "ui-variables";
+
+.container-filters {
+  .filter-item {
+    border-bottom:1px solid @border-color-divider;
+    cursor: default;
+  }
+  .footer {
+    border-top:1px solid @border-color-divider;
+    background-color: @background-secondary;
+    padding: @padding-base-vertical*3 @padding-base-horizontal;
+    .btn {
+      margin-right: @padding-base-horizontal;
+    }
+  }
+  .header {
+    padding: @padding-base-vertical @padding-base-horizontal;
+  }
+  .details {
+    font-size:0.9em;
+    padding: @padding-base-vertical @padding-base-horizontal;
+    background-color: @background-secondary;
+    border-top:1px dashed @border-color-divider;
+    padding-top: @padding-base-vertical;
+  }
+  .well {
+    background-color: @background-primary;
+    border: 1px solid @border-color-divider;
+    margin: @padding-base-vertical 0;
+
+    .well-row {
+      padding: @padding-base-vertical @padding-base-horizontal;
+      border-bottom: 1px solid @border-color-divider;
+      select, input {
+        margin-right:@padding-base-horizontal / 2;
+        margin-right:@padding-base-horizontal / 2;
+      }
+      .actions {
+        .btn {
+          padding:4px;
+          border-radius: 100%;
+          text-align: center;
+          margin-left:5px;
+          margin-right:5px;
+          width:24px;
+        }
+      }
+    }
+    .well-row:last-child {
+      border-bottom: none;
+    }
+  }
+}

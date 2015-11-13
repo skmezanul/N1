@@ -508,6 +508,9 @@ class Actions
   ###
   @recordUserEvent: ActionScopeWindow
 
+  @createFilter: ActionScopeWindow
+  @updateFilter: ActionScopeWindow
+  @deleteFilter: ActionScopeWindow
 
 # Read the actions we declared on the dummy Actions object above
 # and translate them into Reflux Actions

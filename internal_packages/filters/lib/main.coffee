@@ -2,7 +2,7 @@
 #
 # A way to apply filters, AKA mail rules, to incoming mail.
 
-Filters = require './filters'
+FilterList = require './filter-list'
 # Requiring 'nylas-exports' is the way to access core N1 components.
 {WorkspaceStore, ComponentRegistry} = require 'nylas-exports'
 
@@ -20,7 +20,7 @@ module.exports =
 
     # Above, we named the sheet "Filters," and we're registering a React
     # component to live inside the "Filters" sheet.
-    ComponentRegistry.register Filters,
+    ComponentRegistry.register FilterList,
       location: WorkspaceStore.Location.Filters
 
     # `WorkspaceStore.SidebarItem` is a React component which is meant to be
@@ -36,4 +36,4 @@ module.exports =
   # `deactivate` is called when packages are closing. It's a good time to
   # unregister React components.
   deactivate: ->
-    ComponentRegistry.unregister Filters
+    ComponentRegistry.unregister(FilterList)
