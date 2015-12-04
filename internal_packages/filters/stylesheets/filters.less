@@ -1,9 +1,18 @@
 @import "ui-variables";
 
 .container-filters {
-  .filter-item {
+  .filter-list {
+      min-width:200px;
+  }
+  .filter-detail {
+    flex: 1;
     border-bottom:1px solid @border-color-divider;
     cursor: default;
+    font-size:0.9em;
+    padding: @padding-base-vertical @padding-base-horizontal;
+    background-color: @background-secondary;
+    border-top:1px dashed @border-color-divider;
+    padding-top: @padding-base-vertical;
   }
   .footer {
     border-top:1px solid @border-color-divider;
@@ -12,16 +21,6 @@
     .btn {
       margin-right: @padding-base-horizontal;
     }
-  }
-  .header {
-    padding: @padding-base-vertical @padding-base-horizontal;
-  }
-  .details {
-    font-size:0.9em;
-    padding: @padding-base-vertical @padding-base-horizontal;
-    background-color: @background-secondary;
-    border-top:1px dashed @border-color-divider;
-    padding-top: @padding-base-vertical;
   }
   .well {
     background-color: @background-primary;

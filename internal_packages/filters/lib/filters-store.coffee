@@ -1,15 +1,7 @@
 NylasStore = require 'nylas-store'
 _ = require 'underscore'
 _s = require 'underscore.string'
-{Actions,
- CategoryStore,
- AccountStore,
- ChangeLabelsTask,
- ChangeFolderTask,
- TaskFactory,
- ChangeStarredTask,
- ChangeUnreadTask,
- Utils} = require 'nylas-exports'
+{Actions} = require 'nylas-exports'
 Filter = require './filter'
 
 # The FiltersStore performs all business logic for filters: the single source
