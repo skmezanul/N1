@@ -40,6 +40,18 @@ describe "SendDraftTask", ->
       expect(@sendA.isDependentTask(@saveA)).toBe(true)
 
   describe "performLocal", ->
+    it "throws an error if it can't find the draft in the DB", ->
+      expect(false).toBe true
+
+    it "saves the draft in the task's memory", ->
+      expect(false).toBe true
+
+    it "stores the serverId if a draft has one", ->
+      expect(false).toBe true
+
+    it "stores no serverId if a draft doesn't have one", ->
+      expect(false).toBe true
+
     it "should throw an exception if the first parameter is not a clientId", ->
       badTasks = [new SendDraftTask()]
       goodTasks = [new SendDraftTask('localid-a')]
@@ -99,6 +111,33 @@ describe "SendDraftTask", ->
       spyOn(SoundRegistry, "playSound")
       spyOn(Actions, "postNotification")
       spyOn(Actions, "sendDraftSuccess")
+
+    it "sends the draft at the time of performLocal", ->
+      expect(false).toBe true
+
+    it "sends draft in memory even if it changed", ->
+      expect(false).toBe true
+
+    it "sends draft in memory even if it got deleted", ->
+      expect(false).toBe true
+
+    it "completes without DELETEing if there's no draft server ID", ->
+      expect(false).toBe true
+
+    it "deletes the draft on the server if there's a draftServerId", ->
+      expect(false).toBe true
+
+    it "deletes the draft on the server if there's a draftServerId", ->
+      expect(false).toBe true
+
+    it "catches invalid message public ids when trying to send and tries again", ->
+      expect(false).toBe true
+
+    it "catches invalid threads and tries again", ->
+      expect(false).toBe true
+
+    it "fails permanently if makeRequest has any other type of error", ->
+      expect(false).toBe true
 
     it "should notify the draft was sent", ->
       waitsForPromise => @task.performRemote().then =>

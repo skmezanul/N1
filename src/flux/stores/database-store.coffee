@@ -25,7 +25,7 @@ DatabasePhase =
   Ready: 'ready'
   Close: 'close'
 
-DEBUG_TO_LOG = false
+DEBUG_TO_LOG = true
 DEBUG_QUERY_PLANS = NylasEnv.inDevMode()
 DEBUG_MISSING_ACCOUNT_ID = false
 

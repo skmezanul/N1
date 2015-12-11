@@ -48,7 +48,8 @@ class DraftChangeSet
 
   # If force is true, then we'll always run the `_onCommit` callback
   # regardless if there are _pending changes or not
-  commit: ({force}={}) =>
+  commit: ({force, noSyncback}={}) =>
+    console.log("Called session.changes.commit", Date.now())
     @_commitChain = @_commitChain.finally =>
 
       if not force and Object.keys(@_pending).length is 0
@@ -56,7 +57,8 @@ class DraftChangeSet
 
       @_saving = @_pending
       @_pending = {}
-      return @_onCommit().then =>
+      return @_onCommit({noSyncback}).then =>
+        console.log "Draft Change Set @_onCommit Callbackk", Date.now()
         @_saving = {}
 
     return @_commitChain
@@ -157,7 +159,8 @@ class DraftStoreProxy
       throw new Error("DraftChangeSet was modified before the draft was prepared.")
     @trigger()
 
-  _changeSetCommit: =>
+  _changeSetCommit: ({noSyncback}={}) =>
+    console.log("Calling _changeSetCommit", Date.now())
     if @_destroyed or not @_draft
       return Promise.resolve(true)
 
@@ -178,6 +181,8 @@ class DraftStoreProxy
 
         updatedDraft = @changes.applyToModel(draft)
         return DatabaseStore.persistModel(updatedDraft).then =>
+          console.log("---> JUST PERSISTED", _.clone(updatedDraft.body), Date.now())
+          return if noSyncback
           Actions.queueTask(new SyncbackDraftTask(@draftClientId))
 
 

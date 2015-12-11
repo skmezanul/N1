@@ -49,6 +49,10 @@ describe "DraftChangeSet", ->
         expect(@changeSet.commit).toHaveBeenCalled()
 
   describe "commit", ->
+
+    it "doesn't generate a syncback draft task if you pass in `noSyncback`", ->
+      expect("TODO").toBe true
+
     it "should resolve immediately if the pending set is empty", ->
       @changeSet._pending = {}
       waitsForPromise =>

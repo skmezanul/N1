@@ -472,8 +472,14 @@ class DraftStore
       # session.changes._pending to be empty if the last SyncbackDraftTask
       # failed during its performRemote. When we send we should always try
       # again.
-      session.changes.commit(force: true).then =>
+      #
+      # We also don't want to generate a {SyncbackDraftTask} since we're
+      # about to delete the Draft object when we fire {SendDraftTask}.
+      # Unfortunately if we started a {SyncbackDraftTask} we wouldn't be
+      # able to reliabley dequeue or stop it in time.
+      session.changes.commit(force: true, noSyncback: true).then =>
         task = new SendDraftTask(draftClientId, {fromPopout: @_isPopout()})
+        console.log "_onSendDraft commit done. Queuing task", Date.now()
         Actions.queueTask(task)
         @_doneWithSession(session)
         NylasEnv.close() if @_isPopout()
