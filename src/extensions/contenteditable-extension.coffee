@@ -59,7 +59,7 @@ class ContenteditableExtension
   reflect that it is no longer empty.
 
   ```coffee
-  onContentChanged: (editableNode, selection, mutations) ->
+  onContentChanged: (editor, mutations) ->
     isWithinNode = (node) ->
       test = selection.baseNode
       while test isnt editableNode
@@ -73,7 +73,7 @@ class ContenteditableExtension
         codeTag.classList.remove('empty')
   ```
   ###
-  @onContentChanged: (editableNode, selection, mutations) ->
+  @onContentChanged: (editor, mutations) ->
 
   ###
   Public: Override onBlur to mutate the contenteditable DOM node whenever the
@@ -86,7 +86,7 @@ class ContenteditableExtension
   object that represents the current selection on the contenteditable
   - event: DOM event fired on the contenteditable
   ###
-  @onBlur: (editableNode, selection, event) ->
+  @onBlur: (editor, event) ->
 
   ###
   Public: Override onFocus to mutate the contenteditable DOM node whenever the
@@ -99,7 +99,7 @@ class ContenteditableExtension
   object that represents the current selection on the contenteditable
   - event: DOM event fired on the contenteditable
   ###
-  @onFocus: (editableNode, selection, event) ->
+  @onFocus: (editor, event) ->
 
   ###
   Public: Override onClick to mutate the contenteditable DOM node whenever the
@@ -112,7 +112,7 @@ class ContenteditableExtension
   object that represents the current selection on the contenteditable
   - event: DOM event fired on the contenteditable
   ###
-  @onClick: (editableNode, selection, event) ->
+  @onClick: (editor, event) ->
 
   ###
   Public: Override onKeyDown to mutate the contenteditable DOM node whenever the
@@ -134,7 +134,7 @@ class ContenteditableExtension
   object that represents the current selection on the contenteditable
   - event: DOM event fired on the contenteditable
   ###
-  @onKeyDown: (editableNode, selection, event) ->
+  @onKeyDown: (editor, event) ->
 
   ###
   Public: Override onInput to mutate the contenteditable DOM node whenever the
@@ -150,6 +150,6 @@ class ContenteditableExtension
   to the context menu that will be displayed when you right click the contenteditable.
   - event: DOM event fired on the contenteditable
   ###
-  @onShowContextMenu: (editableNode, selection, event, menu) ->
+  @onShowContextMenu: (editor, event, menu) ->
 
 module.exports = ContenteditableExtension

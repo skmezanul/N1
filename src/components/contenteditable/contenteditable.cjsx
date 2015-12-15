@@ -69,7 +69,8 @@ class Contenteditable extends React.Component
   # mutations happened).
   atomicEdit: (editingFunction, extraArgs...) =>
     @_teardownListeners()
-    args = [@_editableNode(), document.getSelection(), extraArgs...]
+    editor = new Editor(@_editableNode(), document.getSelection())
+    args = [editor, extraArgs...]
     editingFunction.apply(null, args)
     @_setupListeners()
     @_onDOMMutated()
@@ -146,7 +147,7 @@ class Contenteditable extends React.Component
 
   _keymapHandlers: ->
     atomicEditWrap = (command) => (event) =>
-      @atomicEdit((-> document.execCommand(command)), event)
+      @atomicEdit(((editor)-> editor[command]), event)
 
     keymapHandlers = {
       'contenteditable:bold': atomicEditWrap("bold")
