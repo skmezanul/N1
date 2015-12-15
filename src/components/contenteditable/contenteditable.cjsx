@@ -3,11 +3,16 @@ React = require 'react'
 
 {Utils, DOMUtils} = require 'nylas-exports'
 {KeyCommandsRegion} = require 'nylas-component-kit'
-ClipboardService = require './clipboard-service'
 FloatingToolbarContainer = require './floating-toolbar-container'
 
 Editor = require './editor'
 Selection = require './selection'
+
+TabManager = require './tab-manager'
+ListManager = require './list-manager'
+MouseService = require './mouse-service'
+DOMNormalizer = require './dom-normalizer'
+ClipboardService = require './clipboard-service'
 
 ###
 Public: A modern React-compatible contenteditable
@@ -56,10 +61,8 @@ class Contenteditable extends React.Component
     spellcheck: true
     floatingToolbar: true
 
+  coreServices: [MouseService, ClipboardService]
 
-  TabManager = require './tab-manager'
-  ListManager = require './list-manager'
-  DOMNormalizer = require './dom-normalizer'
   coreExtensions: [DOMNormalizer, ListManager, TabManager]
 
 
@@ -94,24 +97,16 @@ class Contenteditable extends React.Component
 
   selectEnd: => @atomicEdit (editor) -> editor.selection.selectEnd()
 
-  setInnerState: (innerState={}) ->
-    @innerState = _.extend @innerState, innerState
-    @refs["toolbarController"]?.componentWillReceiveInnerProps(innerState)
-
 
   ########################################################################
   ########################### React Lifecycle ############################
   ########################################################################
 
-  constructor: (@props) ->
-    @innerState = {}
-    @_setupServices(@props)
+  constructor: (@props) -> @innerState = {}
 
   componentDidMount: =>
-    @_mutationObserver = new MutationObserver(@_onDOMMutated)
+    @_setupServices()
     @_setupListeners()
-    @_setupGlobalMouseListener()
-    @_cleanHTML()
     @setInnerState editableNode: @_editableNode()
 
   # When we have a composition event in progress, we should not update
@@ -122,30 +117,36 @@ class Contenteditable extends React.Component
      not Utils.isEqualReact(nextState, @state))
 
   componentWillReceiveProps: (nextProps) =>
-    @_setupServices(nextProps)
     if nextProps.initialSelectionSnapshot?
       @_saveSelectionState(nextProps.initialSelectionSnapshot)
 
   componentDidUpdate: =>
-    @_cleanHTML()
     @_restoreSelection()
-
-    # On a given update the actual DOM node might be a different object on
-    # the heap. We need to refresh the mutation listeners.
-    @_teardownListeners()
-    @_setupListeners()
-
+    @_refreshServices()
     @setInnerState
       links: @_editableNode().querySelectorAll("*[href]")
       editableNode: @_editableNode()
 
   componentWillUnmount: =>
     @_teardownListeners()
-    @_teardownGlobalMouseListener()
+    @_teardownServices()
 
-  _setupServices: (props) ->
-    @clipboardService = new ClipboardService
-      onFilePaste: props.onFilePaste
+  setInnerState: (innerState={}) ->
+    @innerState = _.extend @innerState, innerState
+    @refs["toolbarController"]?.componentWillReceiveInnerProps(innerState)
+    @_refreshServices()
+
+  _setupServices: ->
+    @_services = @coreServices.map (Service) =>
+      new Service
+        data: {@props, @state, @innerState}
+        methods: {@setInnerState}
+
+  _refreshServices: ->
+    service.setData({@props, @state, @innerState}) for service in @_services
+
+  _teardownServices: ->
+    service?.teardown?() for service in @_services
 
 
   ########################################################################
@@ -179,13 +180,15 @@ class Contenteditable extends React.Component
   ########################################################################
 
   _eventHandlers: =>
-    onBlur: @_onBlur
-    onFocus: @_onFocus
-    onClick: @_onClick
-    onPaste: @clipboardService.onPaste
-    onKeyDown: @_onKeyDown
-    onCompositionEnd: @_onCompositionEnd
-    onCompositionStart: @_onCompositionStart
+    handlers = {}
+    _.extend(handlers, service.eventHandlers()) for service in @_services
+    handlers = _.extend handlers,
+      onBlur: @_onBlur
+      onFocus: @_onFocus
+      onKeyDown: @_onKeyDown
+      onCompositionEnd: @_onCompositionEnd
+      onCompositionStart: @_onCompositionStart
+    return handlers
 
   _keymapHandlers: ->
     atomicEditWrap = (command) => (event) =>
@@ -205,6 +208,8 @@ class Contenteditable extends React.Component
 
   _setupListeners: =>
     @_ignoreMutationChanges = false
+    @_mutationObserver?.disconnect()
+    @_mutationObserver = new MutationObserver(@_onDOMMutated)
     @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     document.addEventListener("selectionchange", @_saveSelectionState)
     @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
@@ -309,6 +314,25 @@ class Contenteditable extends React.Component
     @_setupListeners()
     mutations = @_compositionMutationAccumulator?.disconnect()
     @_onDOMMutated(mutations)
+
+  _onShowContextMenu: (event) =>
+    @refs["toolbarController"]?.forceClose()
+    event.preventDefault()
+
+    remote = require('remote')
+    Menu = remote.require('menu')
+    MenuItem = remote.require('menu-item')
+
+    menu = new Menu()
+
+    @_runEventCallbackOnExtensions("onShowContextMenu", event, menu)
+    menu.append(new MenuItem({ label: 'Cut', role: 'cut'}))
+    menu.append(new MenuItem({ label: 'Copy', role: 'copy'}))
+    menu.append(new MenuItem({ label: 'Paste', role: 'paste'}))
+    menu.append(new MenuItem({ label: 'Paste and Match Style', click: =>
+      NylasEnv.getCurrentWindow().webContents.pasteAndMatchStyle()
+    }))
+    menu.popup(remote.getCurrentWindow())
 
 
   ########################################################################
@@ -471,102 +495,5 @@ class Contenteditable extends React.Component
     parentRect = @props.getComposerBoundingRect()
     selfRect = @_editableNode().getBoundingClientRect()
     return Math.abs(parentRect.bottom - selfRect.bottom) <= 250
-
-
-
-  ########################################################################
-  ################################ MOUSE #################################
-  ########################################################################
-  _onClick: (event) ->
-    # We handle mouseDown, mouseMove, mouseUp, but we want to stop propagation
-    # of `click` to make it clear that we've handled the event.
-    # Note: Related to composer-view#_onClickComposeBody
-    event.stopPropagation()
-
-  # We use global listeners to determine whether or not dragging is
-  # happening. This is because dragging may stop outside the scope of
-  # this element. Note that the `dragstart` and `dragend` events don't
-  # detect text selection. They are for drag & drop.
-  _setupGlobalMouseListener: =>
-    @__onMouseDown = _.bind(@_onMouseDown, @)
-    @__onMouseMove = _.bind(@_onMouseMove, @)
-    @__onMouseUp = _.bind(@_onMouseUp, @)
-    window.addEventListener("mousedown", @__onMouseDown)
-    window.addEventListener("mouseup", @__onMouseUp)
-
-  _teardownGlobalMouseListener: =>
-    window.removeEventListener("mousedown", @__onMouseDown)
-    window.removeEventListener("mouseup", @__onMouseUp)
-
-  _onShowContextMenu: (event) =>
-    @refs["toolbarController"]?.forceClose()
-    event.preventDefault()
-
-    remote = require('remote')
-    Menu = remote.require('menu')
-    MenuItem = remote.require('menu-item')
-
-    menu = new Menu()
-
-    @_runEventCallbackOnExtensions("onShowContextMenu", event, menu)
-    menu.append(new MenuItem({ label: 'Cut', role: 'cut'}))
-    menu.append(new MenuItem({ label: 'Copy', role: 'copy'}))
-    menu.append(new MenuItem({ label: 'Paste', role: 'paste'}))
-    menu.append(new MenuItem({ label: 'Paste and Match Style', click: =>
-      NylasEnv.getCurrentWindow().webContents.pasteAndMatchStyle()
-    }))
-    menu.popup(remote.getCurrentWindow())
-
-  _onMouseDown: (event) =>
-    @_mouseDownEvent = event
-    @_mouseHasMoved = false
-    window.addEventListener("mousemove", @__onMouseMove)
-
-    # We can't use the native double click event because that only fires
-    # on the second up-stroke
-    if Date.now() - (@_lastMouseDown ? 0) < 250
-      @_onDoubleDown(event)
-      @_lastMouseDown = 0 # to prevent triple down
-    else
-      @_lastMouseDown = Date.now()
-
-  _onDoubleDown: (event) =>
-    editable = @_editableNode()
-    return unless editable?
-    if editable is event.target or editable.contains(event.target)
-      @setInnerState doubleDown: true
-
-  _onMouseMove: (event) =>
-    if not @_mouseHasMoved
-      @_onDragStart(@_mouseDownEvent)
-      @_mouseHasMoved = true
-
-  _onMouseUp: (event) =>
-    window.removeEventListener("mousemove", @__onMouseMove)
-
-    if @innerState.doubleDown
-      @setInnerState doubleDown: false
-
-    if @_mouseHasMoved
-      @_mouseHasMoved = false
-      @_onDragEnd(event)
-
-    editableNode = @_editableNode()
-    selection = document.getSelection()
-    return event unless DOMUtils.selectionInScope(selection, editableNode)
-
-    @_runEventCallbackOnExtensions("onClick", event)
-    return event
-
-  _onDragStart: (event) =>
-    editable = @_editableNode()
-    return unless editable?
-    if editable is event.target or editable.contains(event.target)
-      @setInnerState dragging: true
-
-  _onDragEnd: (event) =>
-    if @innerState.dragging
-      @setInnerState dragging: false
-    return event
 
 module.exports = Contenteditable
