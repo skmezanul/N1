@@ -61,3 +61,4 @@ class Editor
   _ec: (args...) -> document.execCommand(args...); return @
   _notImplemented: -> throw new Error("Not implemented")
 
+module.exports = Editor

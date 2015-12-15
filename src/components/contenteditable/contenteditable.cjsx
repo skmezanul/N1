@@ -6,6 +6,7 @@ React = require 'react'
 ClipboardService = require './clipboard-service'
 FloatingToolbarContainer = require './floating-toolbar-container'
 
+Editor = require './editor'
 ListManager = require './list-manager'
 
 ###
