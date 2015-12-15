@@ -18,15 +18,6 @@ class FloatingToolbarContainer extends React.Component
     # callback
     atomicEdit: React.PropTypes.func
 
-    # A function we call when we would like to request to change the
-    # current selection
-    #
-    # TODO: This is passed in and can't use atomicEdit in its pure form
-    # because it needs to reset the main selection state of the
-    # Contenteditable plugin. This should go away once we do a Selection
-    # refactor.
-    onSaveUrl: React.PropTypes.func
-
   @innerPropTypes:
     links: React.PropTypes.array
     dragging: React.PropTypes.bool
@@ -91,7 +82,7 @@ class FloatingToolbarContainer extends React.Component
       pos={@state.toolbarPos}
       mode={@state.toolbarMode}
       visible={@state.toolbarVisible}
-      onSaveUrl={@props.onSaveUrl}
+      onSaveUrl={@_onSaveUrl}
       onMouseEnter={@_onEnterToolbar}
       onChangeMode={@_onChangeMode}
       onMouseLeave={@_onLeaveToolbar}
@@ -102,12 +93,32 @@ class FloatingToolbarContainer extends React.Component
       contentPadding={@CONTENT_PADDING}
       onDoneWithLink={@_onDoneWithLink} />
 
+  _onSaveUrl: (url, linkToModify) =>
+    @props.atomicEdit (editor) ->
+      if linkToModify?
+        linkToModify = DOMUtils.findSimilarNodes(editor.editableNode, linkToModify)?[0]?.childNodes[0]
+        return unless linkToModify?
+        return if linkToModify.getAttribute?('href').trim() is url.trim()
+        toSelect = linkToModify
+      else
+        # When atomicEdit gets run, the selection is already restored to
+        # the last saved selection state. Any operation we perform will
+        # apply to the last saved selection state.
+        toSelect = null
+
+      if url.trim().length is 0
+        if toSelect then editor.select(toSelect).unlink()
+        else editor.unlink()
+      else
+        if toSelect then editor.select(toSelect).createLink(url)
+        else editor.createLink(url)
+
   # We setup the buttons that the Toolbar should have as a combination of
   # core actions and user-defined plugins. The FloatingToolbar simply
   # renders them.
   _toolbarButtonConfigs: ->
     atomicEditWrap = (command) => (event) =>
-      @props.atomicEdit((-> document.execCommand(command)), event)
+      @props.atomicEdit(((editor)-> editor[command]), event)
 
     extensionButtonConfigs = []
     ExtensionRegistry.Composer.extensions().forEach (ext) ->

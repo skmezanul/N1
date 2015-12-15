@@ -5,11 +5,19 @@ ExportedSelection = require 'exported-selection'
 # Convenience methods over the DOM's Selection object
 # https://developer.mozilla.org/en-US/docs/Web/API/Selection
 class Selection
-  constructor: (@rawSelection, @scopeNode) ->
+  constructor: (@scopeNode, @rawSelection) ->
     @scopeNode ?= document.body
     @rawSelection ?= document.getSelection()
 
   setScope: (@scopeNode) ->
+
+  isValid: ->
+    @anchorNode? and
+    @focusNode? and
+    @anchorOffset? and
+    @focusOffset? and
+    @scopeNode.contains(@anchorNode) and
+    @scopeNode.contains(@focusNode)
 
   select: (args...) ->
     if args.length is 0
@@ -46,6 +54,19 @@ class Selection
 
   exportSelection: -> new ExportedSelection(@rawSelection, @scopeNode)
 
+  # Since the last time we exported the selection, the DOM may have
+  # completely changed due to a re-render. To the user it may look
+  # identical, but the newly rendered region may be comprised of
+  # completely new DOM nodes. Our old node references may not exist
+  # anymore. As such, we have the task of re-finding the nodes again and
+  # creating a new selection that matches as accurately as possible.
+  #
+  # There are multiple ways of setting a new selection with the Selection
+  # API. One very common one is to create a new Range object and then call
+  # `addRange` on a selection instance. This does NOT work for us because
+  # `Range` objects are direction-less. A Selection's start node (aka
+  # anchor node aka base node) can be "after" a selection's end node (aka
+  # focus node aka extent node).
   importSelection: (exportedSelection) ->
     newAnchorNode = DOMUtils.findSimilarNodes(@scopeNode, exportedSelection.anchorNode)[exportedSelection.anchorNodeIndex]
 

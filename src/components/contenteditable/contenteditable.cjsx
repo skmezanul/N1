@@ -73,7 +73,9 @@ class Contenteditable extends React.Component
     @_teardownListeners()
     mutationAccumulator = @_tempMutationObserver()
 
-    editor = new Editor(@_editableNode(), new Selection())
+    sel = new Selection(@_editableNode())
+    if not sel.isValid() then sel.importSelection(@innerState.selection)
+    editor = new Editor(@_editableNode(), sel)
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
 
@@ -134,7 +136,7 @@ class Contenteditable extends React.Component
   componentWillReceiveProps: (nextProps) =>
     @_setupServices(nextProps)
     if nextProps.initialSelectionSnapshot?
-      @_setSelectionSnapshot(nextProps.initialSelectionSnapshot)
+      @_saveSelectionState(nextProps.initialSelectionSnapshot)
 
   componentDidUpdate: =>
     @_cleanHTML()
@@ -155,8 +157,7 @@ class Contenteditable extends React.Component
     return unless @props.floatingToolbar
     <FloatingToolbarContainer
         ref="toolbarController"
-        atomicEdit={@atomicEdit}
-        onSaveUrl={@_onSaveUrl} />
+        atomicEdit={@atomicEdit} />
 
   render: =>
     <KeyCommandsRegion className="contenteditable-container"
@@ -458,8 +459,30 @@ class Contenteditable extends React.Component
   _editableNode: =>
     React.findDOMNode(@refs.contenteditable)
 
-  ######### SELECTION MANAGEMENT ##########
-  #
+  _setupListeners: =>
+    @_ignoreInputChanges = false
+    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
+    document.addEventListener("selectionchange", @_saveSelectionState)
+    @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
+
+  # https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
+  _mutationConfig: ->
+    subtree: true
+    childList: true
+    attributes: true
+    characterData: true
+    attributeOldValue: true
+    characterDataOldValue: true
+
+  _teardownListeners: =>
+    document.removeEventListener("selectionchange", @_saveSelectionState)
+    @_mutationObserver.disconnect()
+    @_ignoreInputChanges = true
+    @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
+
+  ########################################################################
+  ############################## Selection ###############################
+  ########################################################################
   # Saving and restoring a selection is difficult with React.
   #
   # React only handles Input and Textarea elements:
@@ -495,103 +518,46 @@ class Contenteditable extends React.Component
   #
   # To fix this we need to keep track of the original indices to determine
   # which node is most likely the matching one.
-
+  #
   # http://www.w3.org/TR/selection-api/#selectstart-event
-  _setupListeners: =>
-    @_ignoreInputChanges = false
-    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
-    document.addEventListener("selectionchange", @_saveSelectionState)
-    @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
 
-  # https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
-  _mutationConfig: ->
-    subtree: true
-    childList: true
-    attributes: true
-    characterData: true
-    attributeOldValue: true
-    characterDataOldValue: true
+  getCurrentSelection: => _.clone(@innerState.selection ? {})
+  getPreviousSelection: => _.clone(@innerState.previousSelection ? {})
 
-  _teardownListeners: =>
-    document.removeEventListener("selectionchange", @_saveSelectionState)
-    @_mutationObserver.disconnect()
-    @_ignoreInputChanges = true
-    @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
-
-  getCurrentSelection: => _.clone(@_selection ? {})
-  getPreviousSelection: => _.clone(@_previousSelection ? {})
-
-  # Every time the cursor changes we need to preserve its location and
-  # state.
+  # Every time the cursor changes we need to save its location and state.
   #
-  # We can't use React's `state` variable because cursor position is not
-  # naturally supported in the virtual DOM.
+  # When React re-renders it doesn't restore the Selection. We need to do
+  # this manually with `_restoreSelection`
   #
-  # We also need to make sure that node references are cloned so they
-  # don't change out from underneath us.
+  # As a performance optimization, we don't attach this to React `state`.
+  # Since re-rendering generates new DOM objects on the heap, testing for
+  # selection equality is expensive and requires a full tree walk.
   #
   # We also need to keep references to the previous selection state in
   # order for undo/redo to work properly.
-  #
-  # We need to be sure to deeply `cloneNode`. This is because sometimes
-  # our anchorNodes are divs with nested <br> tags. If we don't do a deep
-  # clone then when `isEqualNode` is run it will erroneously return false
-  # and our selection restoration will fail.
-  #
-  # The Selection API has the concept of an `anchorNode` and a
-  # `focusNode`. The `anchorNode` is where the selection started from and
-  # does not move. The `focusNode` is where the end of the selection
-  # currently is and may move. A "caret" is simply a selection whose
-  # anchorNode == focusNode and anchorOffset == focusOffset.
-  #
-  # An `anchorNode` is also known as a `startNode`, or `baseNode`. We use
-  # the alias `startNode` since I think it makes more intuitive sense.
-  #
-  # A `focusNode` is also known as an `endNode` or `focusNode`. I use the
-  # `endNode` alias since it makes more inuitive sense.
-  #
-  # When we restore the selection later, we need to find a node that looks
-  # the same as the one we saved (since they're different object
-  # references). Unfortunately there many be many nodes that "look" the
-  # same (match the `isEqualNode`) test. For example, say I have a bunch
-  # of lines with the TEXT_NODE "Foo". All of those will match
-  # `isEqualNode`. To fix this we assume there will be multiple matches
-  # and keep track of the index of the match. e.g. all "Foo" TEXT_NODEs
-  # may look alike, but I know I want the Nth "Foo" TEXT_NODE. We store
-  # this information in the `startNodeIndex` and `endNodeIndex` fields via
-  # the `DOMUtils.getNodeIndex` method.
-  _saveSelectionState: =>
-    selection = document.getSelection()
-    context = @_editableNode()
-    return if DOMUtils.isSameSelection(selection, @_selection, context)
-    return unless selection.anchorNode? and selection.focusNode?
-    return unless DOMUtils.selectionInScope(selection, context)
-
-    @_previousSelection = @_selection
-
-    @_selection =
-      startNode: selection.anchorNode.cloneNode(true)
-      startOffset: selection.anchorOffset
-      startNodeIndex: DOMUtils.getNodeIndex(context, selection.anchorNode)
-      endNode: selection.focusNode.cloneNode(true)
-      endOffset: selection.focusOffset
-      endNodeIndex: DOMUtils.getNodeIndex(context, selection.focusNode)
-      isCollapsed: selection.isCollapsed
-
-    @_ensureSelectionVisible(selection)
+  _saveSelectionState: (sel) =>
+    sel ?= new Selection(@_editableNode())
+    return if (not sel?.isValid()) or (@innerState.selection?.isEqual(sel))
 
     @setInnerState
-      selection: @_selection
+      selection: sel
       editableFocused: true
+      previousSelection: @innerState.selection
 
-    return @_selection
+    @_ensureSelectionVisible(sel)
 
-  _setSelectionSnapshot: (selection) =>
-    @_previousSelection = @_selection
-    @_selection = selection
-    @setInnerState
-      selection: @_selection
-      editableFocused: true
+  _restoreSelection: =>
+    return unless @_shouldRestoreSelection()
+    @_teardownListeners()
+    sel = new Selection(@_editableNode())
+    sel.importSelection(@innerState.selection)
+    @_ensureSelectionVisible(sel)
+    @_setupListeners()
+
+  _shouldRestoreSelection: ->
+    (not @innerState.dragging) and
+    @innerState.selection?.isValid() and
+    document.activeElement is @_editableNode()
 
   # When the selectionState gets set by a parent (e.g. undo-ing and
   # redo-ing) we need to make sure it's visible to the user.
@@ -640,6 +606,12 @@ class Contenteditable extends React.Component
     parentRect = @props.getComposerBoundingRect()
     selfRect = @_editableNode().getBoundingClientRect()
     return Math.abs(parentRect.bottom - selfRect.bottom) <= 250
+
+
+
+  ########################################################################
+  ################################ MOUSE #################################
+  ########################################################################
 
   # We use global listeners to determine whether or not dragging is
   # happening. This is because dragging may stop outside the scope of
@@ -726,76 +698,5 @@ class Contenteditable extends React.Component
     if @innerState.dragging
       @setInnerState dragging: false
     return event
-
-  # We restore the Selection via the `setBaseAndExtent` property of the
-  # `Selection` API
-  #
-  # See http://w3c.github.io/selection-api/#widl-Selection-setBaseAndExtent-void-Node-anchorNode-unsigned-long-anchorOffset-Node-focusNode-unsigned-long-focusOffset
-  #
-  # Since the last time we saved the `@_selection`, the DOM may have
-  # completely changed due to a re-render. To the user it may look
-  # identical, but the newly rendered region may be comprised of
-  # completely new DOM nodes. Our old node references may not exist
-  # anymore. As such, we have the task of re-finding the nodes again and
-  # creating a new selection that matches as accurately as possible.
-  #
-  # There are multiple ways of setting a new selection with the Selection
-  # API. One very common one is to create a new Range object and then call
-  # `addRange` on a selection instance. This does NOT work for us because
-  # `Range` objects are direction-less. A Selection's start node (aka
-  # anchor node aka base node) can be "after" a selection's end node (aka
-  # focus node aka extent node).
-  #
-  # force - when set to true it will not care whether or not the selection
-  #         is already in the box. Normally we only restore when the
-  #         contenteditable is in focus
-  # collapse - Can either be "end" or "start". When we reset the
-  #            selection, we'll collapse the range into a single caret
-  #            position
-  _restoreSelection: ({force, collapse}={}) =>
-    return if @innerState.dragging
-    return if not @_selection?
-    return if document.activeElement isnt @_editableNode() and not force
-    return if not @_selection.startNode? or not @_selection.endNode?
-
-    editable = @_editableNode()
-    newStartNode = DOMUtils.findSimilarNodes(editable, @_selection.startNode)[@_selection.startNodeIndex]
-    newEndNode = DOMUtils.findSimilarNodes(editable, @_selection.endNode)[@_selection.endNodeIndex]
-    return if not newStartNode? or not newEndNode?
-
-    @_teardownListeners()
-    selection = document.getSelection()
-    selection.setBaseAndExtent(newStartNode,
-                               @_selection.startOffset,
-                               newEndNode,
-                               @_selection.endOffset)
-
-    @_ensureSelectionVisible(selection)
-    @_setupListeners()
-
-  # This needs to be in the contenteditable area because we need to first
-  # restore the selection before calling the `execCommand`
-  #
-  # If the url is empty, that means we want to remove the url.
-  #
-  # TODO: Move this into floating-toolbar-container once we do a refactor
-  # pass on the Selection object.
-  _onSaveUrl: (url, linkToModify) =>
-    if linkToModify?
-      linkToModify = DOMUtils.findSimilarNodes(@_editableNode(), linkToModify)?[0]?.childNodes[0]
-      return unless linkToModify?
-      return if linkToModify.getAttribute?('href').trim() is url.trim()
-
-      if url.trim().length is 0
-        fn = (editor) -> editor.select(linkToModify).unlink()
-      else
-        fn = (editor) -> editor.select(linkToModify).createLink(url)
-      @atomicEdit(fn)
-    else
-      if url.trim().length is 0
-        fn = (editor) => editor.importSelection(@_selection).unlink()
-      else
-        fn = (editor) => editor.importSelection(@_selection).createLink(url)
-      @atomicEdit fn
 
 module.exports = Contenteditable

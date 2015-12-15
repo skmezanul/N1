@@ -1,13 +1,17 @@
 # An extended interface of execCommand
 #
 # Muates the DOM and Selection in atomic and predictable ways.
+#
+# editor.select(/{{}}/).checkNode().wrapNode("code")
+#
+# codeTags.forEach (tag) ->
+#   if testTag(tag) DOMUtils.unwrap(tag)
+#
 class Editor
   constructor: (@editableNode, @selection) ->
     @selection.setScope(@editableNode)
 
   select: (args...) -> @selection.select(args...)
-  exportSelection: (args...) -> @selection.exportSelection(args...)
-  importSelection: (args...) -> @selection.importSelection(args...)
 
   wrapNode: ->
     ## TODO

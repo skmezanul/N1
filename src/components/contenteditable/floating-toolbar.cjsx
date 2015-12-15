@@ -26,11 +26,6 @@ class FloatingToolbar extends React.Component
     visible: React.PropTypes.bool
 
     # A callback function we use to save the URL to the Contenteditable
-    #
-    # TODO: This only gets passed down because the Selection state must be
-    # manually maniuplated to apply the link to the appropriate text via
-    # the document.execcommand("createLink") command. This should get
-    # refactored with the Selection state.
     onSaveUrl: React.PropTypes.func
 
     # A callback so our parent can decide whether or not to hide when the
@@ -95,6 +90,22 @@ class FloatingToolbar extends React.Component
       <div className="toolbar-pointer" style={@_toolbarPointerStyles()}></div>
       {@_toolbarType()}
     </div>
+
+  _onSaveUrl: (url, linkToModify) =>
+    @props.atomicEdit (editor) ->
+      if linkToModify?
+        linkToModify = DOMUtils.findSimilarNodes(@_editableNode(), linkToModify)?[0]?.childNodes[0]
+        return unless linkToModify?
+        return if linkToModify.getAttribute?('href').trim() is url.trim()
+        toSelect = linkToModify
+      else
+        toSelect = @innerState.selection
+
+      if url.trim().length is 0
+        fn = (editor) -> editor.select(toSelect).unlink()
+      else
+        fn = (editor) -> editor.select(toSelect).createLink(url)
+
 
   _toolbarClasses: =>
     classes = {}
@@ -186,7 +197,7 @@ class FloatingToolbar extends React.Component
   # case we also want to remove the link.
   _removeUrl: =>
     @setState urlInputValue: ""
-    @props.onSaveUrl "", @props.linkToModify
+    @_onSaveUrl "", @props.linkToModify
     @props.onDoneWithLink()
 
   _onFocus: =>
@@ -210,7 +221,7 @@ class FloatingToolbar extends React.Component
 
   _saveUrl: =>
     if (@state.urlInputValue ? "").trim().length > 0
-      @props.onSaveUrl @state.urlInputValue, @props.linkToModify
+      @_onSaveUrl @state.urlInputValue, @props.linkToModify
     @props.onDoneWithLink()
 
   _toolbarLeft: =>
