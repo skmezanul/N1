@@ -1,3 +1,5 @@
+_ = require 'underscore'
+{DOMUtils} = require 'nylas-exports'
 ContenteditableService = require './contenteditable-service'
 
 class MouseService extends ContenteditableService
@@ -67,7 +69,7 @@ class MouseService extends ContenteditableService
     selection = document.getSelection()
     return event unless DOMUtils.selectionInScope(selection, editableNode)
 
-    @_runEventCallbackOnExtensions("onClick", event)
+    @runEventCallbackOnExtensions("onClick", event)
     return event
 
   _onDragStart: (event) =>

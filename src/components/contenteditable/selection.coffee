@@ -1,6 +1,6 @@
 _ = require 'underscore'
 {DOMUtils} = require 'nylas-exports'
-ExportedSelection = require 'exported-selection'
+ExportedSelection = require './exported-selection'
 
 # Convenience methods over the DOM's Selection object
 # https://developer.mozilla.org/en-US/docs/Web/API/Selection
@@ -77,6 +77,7 @@ class Selection
   # anchor node aka base node) can be "after" a selection's end node (aka
   # focus node aka extent node).
   importSelection: (exportedSelection) ->
+    return unless exportedSelection instanceof ExportedSelection
     newAnchorNode = DOMUtils.findSimilarNodes(@scopeNode, exportedSelection.anchorNode)[exportedSelection.anchorNodeIndex]
 
     newFocusNode = DOMUtils.findSimilarNodes(@scopeNode, exportedSelection.focusNode)[exportedSelection.focusNodeIndex]

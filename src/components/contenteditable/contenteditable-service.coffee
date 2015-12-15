@@ -5,7 +5,7 @@
 class ContenteditableService
   constructor: ({@data, @methods}) ->
     {@props, @state, @innerState} = @data
-    {@setInnerState} = @methods
+    {@setInnerState, @runEventCallbackOnExtensions} = @methods
 
   setData: ({@props, @state, @innerState}) ->
 

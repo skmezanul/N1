@@ -14,17 +14,17 @@ class FloatingToolbarContainer extends React.Component
     # We are passed in the Contenteditable's `atomicEdit` mutator
     # function. This is the safe way to request updates in the
     # contenteditable. It will pass the editable DOM node and the
-    # Selection object plus any extra args (like DOM event objects) to the
-    # callback
+    # exportedSelection object plus any extra args (like DOM event
+    # objects) to the callback
     atomicEdit: React.PropTypes.func
 
   @innerPropTypes:
     links: React.PropTypes.array
     dragging: React.PropTypes.bool
-    selection: React.PropTypes.object
     doubleDown: React.PropTypes.bool
     editableNode: React.PropTypes.object
     editableFocused: React.PropTypes.bool
+    exportedSelection: React.PropTypes.object
 
   constructor: (@props) ->
     @state =
@@ -32,18 +32,18 @@ class FloatingToolbarContainer extends React.Component
       toolbarMode: "buttons"
       toolbarLeft: 0
       toolbarPos: "above"
-      editAreaWidth: 9999 # This will get set on first selection
+      editAreaWidth: 9999 # This will get set on first exportedSelection
       toolbarVisible: false
       linkHoveringOver: null
     @_setToolbarState = _.debounce(@_setToolbarState, 10)
     @innerProps =
       links: []
       dragging: false
-      selection: null
       doubleDown: false
       editableNode: null
       toolbarFocus: false
       editableFocused: null
+      exportedSelection: null
 
   shouldComponentUpdate: (nextProps, nextState) ->
     not Utils.isEqualReact(nextProps, @props) or
@@ -101,9 +101,9 @@ class FloatingToolbarContainer extends React.Component
         return if linkToModify.getAttribute?('href').trim() is url.trim()
         toSelect = linkToModify
       else
-        # When atomicEdit gets run, the selection is already restored to
-        # the last saved selection state. Any operation we perform will
-        # apply to the last saved selection state.
+        # When atomicEdit gets run, the exportedSelection is already restored to
+        # the last saved exportedSelection state. Any operation we perform will
+        # apply to the last saved exportedSelection state.
         toSelect = null
 
       if url.trim().length is 0
@@ -218,8 +218,8 @@ class FloatingToolbarContainer extends React.Component
     return false if @state.toolbarMode is "edit-link"
     return false if props.linkHoveringOver
     return not props.editableFocused or
-           not props.selection or
-           props.selection.isCollapsed
+           not props.exportedSelection or
+           props.exportedSelection.isCollapsed
 
   _refreshLinkHoverListeners: ->
     @_teardownLinkHoverListeners()

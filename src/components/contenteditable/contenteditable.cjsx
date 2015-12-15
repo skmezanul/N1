@@ -84,7 +84,7 @@ class Contenteditable extends React.Component
     mutationAccumulator = @_tempMutationObserver()
 
     sel = new Selection(@_editableNode())
-    if not sel.isInScope() then sel.importSelection(@innerState.selection)
+    if not sel.isInScope() then sel.importSelection(@innerState.exportedSelection)
     editor = new Editor(@_editableNode(), sel)
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
@@ -104,8 +104,10 @@ class Contenteditable extends React.Component
 
   constructor: (@props) -> @innerState = {}
 
-  componentDidMount: =>
+  componentWillMount: =>
     @_setupServices()
+
+  componentDidMount: =>
     @_setupListeners()
     @setInnerState editableNode: @_editableNode()
 
@@ -131,7 +133,7 @@ class Contenteditable extends React.Component
     @_teardownListeners()
     @_teardownServices()
 
-  setInnerState: (innerState={}) ->
+  setInnerState: (innerState={}) =>
     @innerState = _.extend @innerState, innerState
     @refs["toolbarController"]?.componentWillReceiveInnerProps(innerState)
     @_refreshServices()
@@ -140,7 +142,7 @@ class Contenteditable extends React.Component
     @_services = @coreServices.map (Service) =>
       new Service
         data: {@props, @state, @innerState}
-        methods: {@setInnerState}
+        methods: {@setInnerState, @runEventCallbackOnExtensions}
 
   _refreshServices: ->
     service.setData({@props, @state, @innerState}) for service in @_services
@@ -192,7 +194,7 @@ class Contenteditable extends React.Component
 
   _keymapHandlers: ->
     atomicEditWrap = (command) => (event) =>
-      @atomicEdit(((editor)-> editor[command]), event)
+      @atomicEdit(((editor)-> editor[command]()), event)
 
     keymapHandlers = {
       'contenteditable:bold': atomicEditWrap("bold")
@@ -211,11 +213,11 @@ class Contenteditable extends React.Component
     @_mutationObserver?.disconnect()
     @_mutationObserver = new MutationObserver(@_onDOMMutated)
     @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
-    document.addEventListener("selectionchange", @_saveSelectionState)
+    document.addEventListener("selectionchange", @_onSelectionChange)
     @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
 
   _teardownListeners: =>
-    document.removeEventListener("selectionchange", @_saveSelectionState)
+    document.removeEventListener("selectionchange", @_onSelectionChange)
     @_mutationObserver.disconnect()
     @_ignoreMutationChanges = true
     @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
@@ -281,15 +283,15 @@ class Contenteditable extends React.Component
   _onBlur: (event) =>
     @setInnerState dragging: false
     return if @_editableNode().parentElement.contains event.relatedTarget
-    @_runEventCallbackOnExtensions("onBlur", event)
+    @runEventCallbackOnExtensions("onBlur", event)
     @setInnerState editableFocused: false
 
   _onFocus: (event) =>
     @setInnerState editableFocused: true
-    @_runEventCallbackOnExtensions("onFocus", event)
+    @runEventCallbackOnExtensions("onFocus", event)
 
   _onKeyDown: (event) =>
-    @_runEventCallbackOnExtensions("onKeyDown", event)
+    @runEventCallbackOnExtensions("onKeyDown", event)
 
   # We must set the `inCompositionEvent` flag in addition to tearing down
   # the selecton listeners. While the composition event is in progress, we
@@ -325,7 +327,7 @@ class Contenteditable extends React.Component
 
     menu = new Menu()
 
-    @_runEventCallbackOnExtensions("onShowContextMenu", event, menu)
+    @runEventCallbackOnExtensions("onShowContextMenu", event, menu)
     menu.append(new MenuItem({ label: 'Cut', role: 'cut'}))
     menu.append(new MenuItem({ label: 'Copy', role: 'copy'}))
     menu.append(new MenuItem({ label: 'Paste', role: 'paste'}))
@@ -353,7 +355,7 @@ class Contenteditable extends React.Component
   # basically means preventing the core extension handlers from being
   # called.  If any of the extensions calls event.stopPropagation(), it
   # will prevent any other extension handlers from being called.
-  _runEventCallbackOnExtensions: (method, event, args...) =>
+  runEventCallbackOnExtensions: (method, event, args...) =>
     for extension in @props.extensions
       break if event?.isPropagationStopped()
       @_runExtensionMethod(extension, method, event, args...)
@@ -410,8 +412,8 @@ class Contenteditable extends React.Component
   #
   # http://www.w3.org/TR/selection-api/#selectstart-event
 
-  getCurrentSelection: => _.clone(@innerState.selection ? {})
-  getPreviousSelection: => _.clone(@innerState.previousSelection ? {})
+  getCurrentSelection: => @innerState.exportedSelection ? {}
+  getPreviousSelection: => @innerState.previousExportedSelection ? {}
 
   # Every time the cursor changes we need to save its location and state.
   #
@@ -424,28 +426,31 @@ class Contenteditable extends React.Component
   #
   # We also need to keep references to the previous selection state in
   # order for undo/redo to work properly.
-  _saveSelectionState: (sel) =>
-    sel ?= new Selection(@_editableNode())
-    return if (not sel?.isInScope()) or (@innerState.selection?.isEqual(sel))
+  _saveSelectionState: (exportedStateToSave=null) =>
+    sel = new Selection(@_editableNode())
+    if exportedStateToSave then sel.importSelection(exportedStateToSave)
+    return unless sel?.isInScope()
+    return if (@innerState.exportedSelection?.isEqual(sel))
 
     @setInnerState
-      selection: sel
+      exportedSelection: sel.exportSelection()
       editableFocused: true
-      previousSelection: @innerState.selection
+      previousExportedSelection: @innerState.exportedSelection
 
     @_ensureSelectionVisible(sel)
+
+  _onSelectionChange: (event) => @_saveSelectionState()
 
   _restoreSelection: =>
     return unless @_shouldRestoreSelection()
     @_teardownListeners()
     sel = new Selection(@_editableNode())
-    sel.importSelection(@innerState.selection)
-    @_ensureSelectionVisible(sel)
+    sel.importSelection(@innerState.exportedSelection)
+    @_ensureSelectionVisible(sel) if sel.isInScope()
     @_setupListeners()
 
   _shouldRestoreSelection: ->
     (not @innerState.dragging) and
-    @innerState.selection?.isInScope() and
     document.activeElement is @_editableNode()
 
   # When the selectionState gets set by a parent (e.g. undo-ing and
