@@ -8,10 +8,9 @@ FloatingToolbarContainer = require './floating-toolbar-container'
 
 Editor = require './editor'
 Selection = require './selection'
-ListManager = require './list-manager'
 
 ###
-Public: A modern, well-behaved, React-compatible contenteditable
+Public: A modern React-compatible contenteditable
 
 This <Contenteditable /> component is fully React-compatible and behaves
 like a standard controlled input.
@@ -33,7 +32,6 @@ class Contenteditable extends React.Component
   @displayName: "Contenteditable"
 
   @propTypes:
-
     # The current html state, as a string, of the contenteditable.
     value: React.PropTypes.string
 
@@ -58,23 +56,32 @@ class Contenteditable extends React.Component
     spellcheck: true
     floatingToolbar: true
 
-  coreExtensions: [ListManager]
 
-  # We allow extensions to read, and mutate the:
-  #
-  # 1. DOM of the contenteditable
-  # 2. The Selection
-  # 3. The innerState of the component
-  # 4. The context menu (onShowContextMenu)
-  #
-  # We treat mutations as a single atomic change (even if multiple actual
-  # mutations happened).
+  TabManager = require './tab-manager'
+  ListManager = require './list-manager'
+  DOMNormalizer = require './dom-normalizer'
+  coreExtensions: [DOMNormalizer, ListManager, TabManager]
+
+
+  ########################################################################
+  ########################### Public Methods #############################
+  ########################################################################
+
+  ### Public: perform an editing operation on the Contenteditable
+
+  - `editingFunction` A function to mutate the DOM and Selection. It gets
+  passed an {Editor} object that contains mutating methods.
+
+  If the current selection at the time of running the extension is out of
+  scope, it will be set to the last saved state. This ensures extensions
+  operate on a valid Selection.
+  ###
   atomicEdit: (editingFunction, extraArgs...) =>
     @_teardownListeners()
     mutationAccumulator = @_tempMutationObserver()
 
     sel = new Selection(@_editableNode())
-    if not sel.isValid() then sel.importSelection(@innerState.selection)
+    if not sel.isInScope() then sel.importSelection(@innerState.selection)
     editor = new Editor(@_editableNode(), sel)
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
@@ -83,6 +90,139 @@ class Contenteditable extends React.Component
     @_setupListeners()
     @_onDOMMutated(mutations)
 
+  focus: => @_editableNode().focus()
+
+  selectEnd: => @atomicEdit (editor) -> editor.selection.selectEnd()
+
+  setInnerState: (innerState={}) ->
+    @innerState = _.extend @innerState, innerState
+    @refs["toolbarController"]?.componentWillReceiveInnerProps(innerState)
+
+
+  ########################################################################
+  ########################### React Lifecycle ############################
+  ########################################################################
+
+  constructor: (@props) ->
+    @innerState = {}
+    @_setupServices(@props)
+
+  componentDidMount: =>
+    @_mutationObserver = new MutationObserver(@_onDOMMutated)
+    @_setupListeners()
+    @_setupGlobalMouseListener()
+    @_cleanHTML()
+    @setInnerState editableNode: @_editableNode()
+
+  # When we have a composition event in progress, we should not update
+  # because otherwise our composition event will be blown away.
+  shouldComponentUpdate: (nextProps, nextState) ->
+    not @_inCompositionEvent and
+    (not Utils.isEqualReact(nextProps, @props) or
+     not Utils.isEqualReact(nextState, @state))
+
+  componentWillReceiveProps: (nextProps) =>
+    @_setupServices(nextProps)
+    if nextProps.initialSelectionSnapshot?
+      @_saveSelectionState(nextProps.initialSelectionSnapshot)
+
+  componentDidUpdate: =>
+    @_cleanHTML()
+    @_restoreSelection()
+
+    # On a given update the actual DOM node might be a different object on
+    # the heap. We need to refresh the mutation listeners.
+    @_teardownListeners()
+    @_setupListeners()
+
+    @setInnerState
+      links: @_editableNode().querySelectorAll("*[href]")
+      editableNode: @_editableNode()
+
+  componentWillUnmount: =>
+    @_teardownListeners()
+    @_teardownGlobalMouseListener()
+
+  _setupServices: (props) ->
+    @clipboardService = new ClipboardService
+      onFilePaste: props.onFilePaste
+
+
+  ########################################################################
+  ############################### Render #################################
+  ########################################################################
+
+  render: =>
+    <KeyCommandsRegion className="contenteditable-container"
+                       localHandlers={@_keymapHandlers()}>
+      {@_renderFloatingToolbar()}
+
+      <div className="contenteditable"
+           ref="contenteditable"
+           contentEditable
+           spellCheck={false}
+           dangerouslySetInnerHTML={__html: @props.value}
+           {...@_eventHandlers()}></div>
+    </KeyCommandsRegion>
+
+  _renderFloatingToolbar: ->
+    return unless @props.floatingToolbar
+    <FloatingToolbarContainer
+        ref="toolbarController" atomicEdit={@atomicEdit} />
+
+  _editableNode: =>
+    React.findDOMNode(@refs.contenteditable)
+
+
+  ########################################################################
+  ############################ Listener Setup ############################
+  ########################################################################
+
+  _eventHandlers: =>
+    onBlur: @_onBlur
+    onFocus: @_onFocus
+    onClick: @_onClick
+    onPaste: @clipboardService.onPaste
+    onKeyDown: @_onKeyDown
+    onCompositionEnd: @_onCompositionEnd
+    onCompositionStart: @_onCompositionStart
+
+  _keymapHandlers: ->
+    atomicEditWrap = (command) => (event) =>
+      @atomicEdit(((editor)-> editor[command]), event)
+
+    keymapHandlers = {
+      'contenteditable:bold': atomicEditWrap("bold")
+      'contenteditable:italic': atomicEditWrap("italic")
+      'contenteditable:indent': atomicEditWrap("indent")
+      'contenteditable:outdent': atomicEditWrap("outdent")
+      'contenteditable:underline': atomicEditWrap("underline")
+      'contenteditable:numbered-list': atomicEditWrap("insertOrderedList")
+      'contenteditable:bulleted-list': atomicEditWrap("insertUnorderedList")
+    }
+
+    return keymapHandlers
+
+  _setupListeners: =>
+    @_ignoreMutationChanges = false
+    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
+    document.addEventListener("selectionchange", @_saveSelectionState)
+    @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
+
+  _teardownListeners: =>
+    document.removeEventListener("selectionchange", @_saveSelectionState)
+    @_mutationObserver.disconnect()
+    @_ignoreMutationChanges = true
+    @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
+
+  # https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
+  _mutationConfig: ->
+    subtree: true
+    childList: true
+    attributes: true
+    characterData: true
+    attributeOldValue: true
+    characterDataOldValue: true
 
   # When we're performing an `atomicEdit` we use this to accumulate
   # changes that happen during this time. We can then pass the full set of
@@ -103,117 +243,48 @@ class Contenteditable extends React.Component
 
     return new TempObserver()
 
-  constructor: (@props) ->
-    @innerState = {}
-    @_setupServices(@props)
 
-  _setupServices: (props) ->
-    @clipboardService = new ClipboardService
-      onFilePaste: props.onFilePaste
+  ########################################################################
+  ############################ Event Handlers ############################
+  ########################################################################
 
-  setInnerState: (innerState={}) ->
-    @innerState = _.extend @innerState, innerState
-    @refs["toolbarController"]?.componentWillReceiveInnerProps(innerState)
+  # Every time the contents of the contenteditable DOM node change, the
+  # `_onDOMMutated` event gets fired.
+  #
+  # If we are in the middle of an `atomic` change transaction, we ignore
+  # those changes.
+  #
+  # At all other times we take the change, apply various filters to the
+  # new content, then notify our parent that the content has been updated.
+  _onDOMMutated: (mutations) =>
+    return if @_ignoreMutationChanges
+    return unless mutations and mutations.length > 0
 
-  componentDidMount: =>
-    @_mutationObserver = new MutationObserver(@_onDOMMutated)
-    @_setupListeners()
-    @_setupGlobalMouseListener()
-    @_cleanHTML()
-    @setInnerState editableNode: @_editableNode()
+    @_ignoreMutationChanges = true
+    @setInnerState dragging: false if @innerState.dragging
+    @setInnerState doubleDown: false if @innerState.doubleDown
 
-  # When we have a composition event in progress, we should not update
-  # because otherwise our composition event will be blown away.
-  shouldComponentUpdate: (nextProps, nextState) ->
-    not @_inCompositionEvent and
-    (not Utils.isEqualReact(nextProps, @props) or
-     not Utils.isEqualReact(nextState, @state))
+    @_runCallbackOnExtensions("onContentChanged", mutations)
 
-  componentWillUnmount: =>
-    @_teardownListeners()
-    @_teardownGlobalMouseListener()
+    @_saveSelectionState()
 
-  componentWillReceiveProps: (nextProps) =>
-    @_setupServices(nextProps)
-    if nextProps.initialSelectionSnapshot?
-      @_saveSelectionState(nextProps.initialSelectionSnapshot)
+    @props.onChange(target: {value: @_editableNode().innerHTML})
 
-  componentDidUpdate: =>
-    @_cleanHTML()
-    @_restoreSelection()
+    @_ignoreMutationChanges = false
+    return
 
-    editableNode = @_editableNode()
+  _onBlur: (event) =>
+    @setInnerState dragging: false
+    return if @_editableNode().parentElement.contains event.relatedTarget
+    @_runEventCallbackOnExtensions("onBlur", event)
+    @setInnerState editableFocused: false
 
-    # On a given update the actual DOM node might be a different object on
-    # the heap. We need to refresh the mutation listeners.
-    @_teardownListeners()
-    @_setupListeners()
+  _onFocus: (event) =>
+    @setInnerState editableFocused: true
+    @_runEventCallbackOnExtensions("onFocus", event)
 
-    @setInnerState
-      links: editableNode.querySelectorAll("*[href]")
-      editableNode: editableNode
-
-  _renderFloatingToolbar: ->
-    return unless @props.floatingToolbar
-    <FloatingToolbarContainer
-        ref="toolbarController"
-        atomicEdit={@atomicEdit} />
-
-  render: =>
-    <KeyCommandsRegion className="contenteditable-container"
-                       localHandlers={@_keymapHandlers()}>
-      {@_renderFloatingToolbar()}
-
-      <div className="contenteditable"
-           ref="contenteditable"
-           contentEditable
-           spellCheck={false}
-           dangerouslySetInnerHTML={__html: @props.value}
-           {...@_eventHandlers()}></div>
-    </KeyCommandsRegion>
-
-  _keymapHandlers: ->
-    atomicEditWrap = (command) => (event) =>
-      @atomicEdit(((editor)-> editor[command]), event)
-
-    keymapHandlers = {
-      'contenteditable:bold': atomicEditWrap("bold")
-      'contenteditable:italic': atomicEditWrap("italic")
-      'contenteditable:indent': atomicEditWrap("indent")
-      'contenteditable:outdent': atomicEditWrap("outdent")
-      'contenteditable:underline': atomicEditWrap("underline")
-      'contenteditable:numbered-list': atomicEditWrap("insertOrderedList")
-      'contenteditable:bulleted-list': atomicEditWrap("insertUnorderedList")
-    }
-
-    return keymapHandlers
-
-  _eventHandlers: =>
-    onBlur: @_onBlur
-    onFocus: @_onFocus
-    onClick: @_onClick
-    onPaste: @clipboardService.onPaste
-    onKeyDown: @_onKeyDown
-    onCompositionEnd: @_onCompositionEnd
-    onCompositionStart: @_onCompositionStart
-
-  focus: =>
-    @_editableNode().focus()
-
-  selectEnd: =>
-    range = document.createRange()
-    range.selectNodeContents(@_editableNode())
-    range.collapse(false)
-    @_editableNode().focus()
-    selection = window.getSelection()
-    selection.removeAllRanges()
-    selection.addRange(range)
-
-  _onClick: (event) ->
-    # We handle mouseDown, mouseMove, mouseUp, but we want to stop propagation
-    # of `click` to make it clear that we've handled the event.
-    # Note: Related to composer-view#_onClickComposeBody
-    event.stopPropagation()
+  _onKeyDown: (event) =>
+    @_runEventCallbackOnExtensions("onKeyDown", event)
 
   # We must set the `inCompositionEvent` flag in addition to tearing down
   # the selecton listeners. While the composition event is in progress, we
@@ -238,6 +309,11 @@ class Contenteditable extends React.Component
     @_setupListeners()
     mutations = @_compositionMutationAccumulator?.disconnect()
     @_onDOMMutated(mutations)
+
+
+  ########################################################################
+  ############################# Extensions ###############################
+  ########################################################################
 
   _runCallbackOnExtensions: (method, args...) =>
     for extension in @props.extensions.concat(@coreExtensions)
@@ -268,217 +344,6 @@ class Contenteditable extends React.Component
     editingFunction = extension[method].bind(extension)
     @atomicEdit(editingFunction, args...)
 
-  _onKeyDown: (event) =>
-    @_runEventCallbackOnExtensions("onKeyDown", event)
-
-    # This is a special case where we don't want to bubble up the event to the
-    # keymap manager if the extension prevented the default behavior
-    if event.defaultPrevented
-      event.stopPropagation()
-      return
-
-    if event.key is "Tab"
-      @_onTabDownDefaultBehavior(event)
-      return
-
-  # Every time the contents of the contenteditable DOM node change, the
-  # `_onDOMMutated` event gets fired.
-  #
-  # If we are in the middle of an `atomic` change transaction, we ignore
-  # those changes.
-  #
-  # At all other times we take the change, apply various filters to the
-  # new content, then notify our parent that the content has been updated.
-  _onDOMMutated: (mutations) =>
-    return if @_ignoreInputChanges
-    return unless mutations and mutations.length > 0
-    @_ignoreInputChanges = true
-    @_resetInnerStateOnInput()
-
-    @_runCallbackOnExtensions("onContentChanged", mutations)
-
-    @_normalize()
-
-    @_saveSelectionState()
-
-    @_notifyParentOfChange()
-
-    @_ignoreInputChanges = false
-    return
-
-  _resetInnerStateOnInput: ->
-    @_autoCreatedListFromText = false
-    @setInnerState dragging: false if @innerState.dragging
-    @setInnerState doubleDown: false if @innerState.doubleDown
-
-  _notifyParentOfChange: ->
-    @props.onChange(target: {value: @_editableNode().innerHTML})
-
-  _onTabDownDefaultBehavior: (event) ->
-    selection = document.getSelection()
-    if selection?.isCollapsed
-      if event.shiftKey
-        if DOMUtils.isAtTabChar(selection)
-          @_removeLastCharacter(selection)
-        else if DOMUtils.isAtBeginningOfDocument(@_editableNode(), selection)
-          return # Don't stop propagation
-      else
-        document.execCommand("insertText", false, "\t")
-    else
-      if event.shiftKey
-        document.execCommand("insertText", false, "")
-      else
-        document.execCommand("insertText", false, "\t")
-    event.preventDefault()
-    event.stopPropagation()
-
-  _removeLastCharacter: (selection) ->
-    if DOMUtils.isSelectionInTextNode(selection)
-      node = selection.anchorNode
-      offset = selection.anchorOffset
-      @_teardownListeners()
-      selection.setBaseAndExtent(node, offset - 1, node, offset)
-      document.execCommand("delete")
-      @_setupListeners()
-
-  # This component works by re-rendering on every change and restoring the
-  # selection. This is also how standard React controlled inputs work too.
-  #
-  # Since the contents of the contenteditable are complex, nested DOM
-  # structures, a simple replacement of the DOM is not easy. There are a
-  # variety of edge cases that we need to correct for and prepare both the
-  # HTML and the selection to be serialized without error.
-  _normalize: ->
-    @_cleanHTML()
-    @_cleanSelection()
-
-  # We need to clean the HTML on input to fix several edge cases that
-  # arise when we go to save the selection state and restore it on the
-  # next render.
-  _cleanHTML: ->
-    return unless @_editableNode()
-
-    # One issue is that we need to pre-normalize the HTML so it looks the
-    # same after it gets re-inserted. If we key selection markers off of an
-    # non normalized DOM, then they won't match up when the HTML gets reset.
-    #
-    # The Node.normalize() method puts the specified node and all of its
-    # sub-tree into a "normalized" form. In a normalized sub-tree, no text
-    # nodes in the sub-tree are empty and there are no adjacent text
-    # nodes.
-    @_editableNode().normalize()
-
-    @_collapseAdjacentLists()
-
-    @_fixLeadingBRCondition()
-
-  # An issue arises from <br/> tags immediately inside of divs. In this
-  # case the cursor's anchor node will not be the <br/> tag, but rather
-  # the entire enclosing element. Sometimes, that enclosing element is the
-  # container wrapping all of the content. The browser has a native
-  # built-in feature that will automatically scroll the page to the bottom
-  # of the current element that the cursor is in if the cursor is off the
-  # screen. In the given case, that element is the whole div. The net
-  # effect is that the browser will scroll erroneously to the bottom of
-  # the whole content div, which is likely NOT where the cursor is or the
-  # user wants. The solution to this is to replace this particular case
-  # with <span></span> tags and place the cursor in there.
-  _fixLeadingBRCondition: ->
-    treeWalker = document.createTreeWalker @_editableNode()
-    while treeWalker.nextNode()
-      currentNode = treeWalker.currentNode
-      if @_hasLeadingBRCondition(currentNode)
-        newNode = document.createElement("div")
-        newNode.appendChild(document.createElement("br"))
-        currentNode.replaceChild(newNode, currentNode.childNodes[0])
-    return
-
-  _hasLeadingBRCondition: (node) ->
-    childNodes = node.childNodes
-    return childNodes.length >= 2 and childNodes[0].nodeName is "BR"
-
-  # If users ended up with two <ul> lists adjacent to each other, we
-  # collapse them into one. We leave adjacent <ol> lists intact in case
-  # the user wanted to restart the numbering sequence
-  _collapseAdjacentLists: ->
-    els = @_editableNode().querySelectorAll('ul')
-
-    # This mutates the DOM in place.
-    DOMUtils.Mutating.collapseAdjacentElements(els)
-
-  # After an input, the selection can sometimes get itself into a state
-  # that either can't be restored properly, or will cause undersirable
-  # native behavior. This method, in combination with `_cleanHTML`, fixes
-  # each of those scenarios before we save and later restore the
-  # selection.
-  _cleanSelection: ->
-    selection = document.getSelection()
-    return unless selection.anchorNode? and selection.focusNode?
-
-    # The _unselectableNode case only is valid when it's at the very top
-    # (offset 0) of the node. If the offsets are > 0 that means we're
-    # trying to select somewhere within some sort of containing element.
-    # This is okay to do. The odd case only arises at the top of
-    # unselectable elements.
-    return if selection.anchorOffset > 0 or selection.focusOffset > 0
-
-    if selection.isCollapsed and @_unselectableNode(selection.focusNode)
-      @_teardownListeners()
-      treeWalker = document.createTreeWalker(selection.focusNode)
-      while treeWalker.nextNode()
-        currentNode = treeWalker.currentNode
-        if @_unselectableNode(currentNode)
-          selection.setBaseAndExtent(currentNode, 0, currentNode, 0)
-          break
-      @_setupListeners()
-    return
-
-  _unselectableNode: (node) ->
-    return true if not node
-    if node.nodeType is Node.TEXT_NODE and DOMUtils.isBlankTextNode(node)
-      return true
-    else if node.nodeType is Node.ELEMENT_NODE
-      child = node.firstChild
-      return true if not child
-      hasText = (child.nodeType is Node.TEXT_NODE and not DOMUtils.isBlankTextNode(node))
-      hasBr = (child.nodeType is Node.ELEMENT_NODE and node.nodeName is "BR")
-      return not hasText and not hasBr
-
-    else return false
-
-  _onBlur: (event) =>
-    @setInnerState dragging: false
-    return if @_editableNode().parentElement.contains event.relatedTarget
-    @_runEventCallbackOnExtensions("onBlur", event)
-    @setInnerState editableFocused: false
-
-  _onFocus: (event) =>
-    @setInnerState editableFocused: true
-    @_runEventCallbackOnExtensions("onFocus", event)
-
-  _editableNode: =>
-    React.findDOMNode(@refs.contenteditable)
-
-  _setupListeners: =>
-    @_ignoreInputChanges = false
-    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
-    document.addEventListener("selectionchange", @_saveSelectionState)
-    @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
-
-  # https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
-  _mutationConfig: ->
-    subtree: true
-    childList: true
-    attributes: true
-    characterData: true
-    attributeOldValue: true
-    characterDataOldValue: true
-
-  _teardownListeners: =>
-    document.removeEventListener("selectionchange", @_saveSelectionState)
-    @_mutationObserver.disconnect()
-    @_ignoreInputChanges = true
-    @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
 
   ########################################################################
   ############################## Selection ###############################
@@ -537,7 +402,7 @@ class Contenteditable extends React.Component
   # order for undo/redo to work properly.
   _saveSelectionState: (sel) =>
     sel ?= new Selection(@_editableNode())
-    return if (not sel?.isValid()) or (@innerState.selection?.isEqual(sel))
+    return if (not sel?.isInScope()) or (@innerState.selection?.isEqual(sel))
 
     @setInnerState
       selection: sel
@@ -556,7 +421,7 @@ class Contenteditable extends React.Component
 
   _shouldRestoreSelection: ->
     (not @innerState.dragging) and
-    @innerState.selection?.isValid() and
+    @innerState.selection?.isInScope() and
     document.activeElement is @_editableNode()
 
   # When the selectionState gets set by a parent (e.g. undo-ing and
@@ -612,6 +477,11 @@ class Contenteditable extends React.Component
   ########################################################################
   ################################ MOUSE #################################
   ########################################################################
+  _onClick: (event) ->
+    # We handle mouseDown, mouseMove, mouseUp, but we want to stop propagation
+    # of `click` to make it clear that we've handled the event.
+    # Note: Related to composer-view#_onClickComposeBody
+    event.stopPropagation()
 
   # We use global listeners to determine whether or not dragging is
   # happening. This is because dragging may stop outside the scope of

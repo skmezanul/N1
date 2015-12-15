@@ -11,7 +11,7 @@ class Selection
 
   setScope: (@scopeNode) ->
 
-  isValid: ->
+  isInScope: ->
     @anchorNode? and
     @focusNode? and
     @anchorOffset? and
@@ -51,6 +51,15 @@ class Selection
     if (not _.isNumber(fromIndex)) or (not _.isNumber(toIndex))
       throw @_errBadUsage()
     @setBaseAndExtent(fromNode, fromIndex, toNode, toIndex)
+
+  selectEnd: ->
+    range = document.createRange()
+    range.selectNodeContents(@scopeNode)
+    range.collapse(false)
+    @scopeNode.focus()
+    selection = window.getSelection()
+    selection.removeAllRanges()
+    selection.addRange(range)
 
   exportSelection: -> new ExportedSelection(@rawSelection, @scopeNode)
 

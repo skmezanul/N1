@@ -6,6 +6,8 @@ class ListManager extends ContenteditableExtension
     if @_spaceEntered and @hasListStartSignature(editor.selection)
       @createList(editor)
 
+    @_collapseAdjacentLists(editor)
+
   @onKeyDown: (editor, event) ->
     @_spaceEntered = event.key is " "
     if DOMUtils.isInList()
@@ -94,5 +96,14 @@ class ListManager extends ContenteditableExtension
       @restoreOriginalInput(editor)
     else
       editor.outdent()
+
+  # If users ended up with two <ul> lists adjacent to each other, we
+  # collapse them into one. We leave adjacent <ol> lists intact in case
+  # the user wanted to restart the numbering sequence
+  @_collapseAdjacentLists: (editor) ->
+    els = editor.rootNode.querySelectorAll('ul')
+
+    # This mutates the DOM in place.
+    DOMUtils.Mutating.collapseAdjacentElements(els)
 
 module.exports = ListManager

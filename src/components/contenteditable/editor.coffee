@@ -8,14 +8,16 @@
 #   if testTag(tag) DOMUtils.unwrap(tag)
 #
 class Editor
-  constructor: (@editableNode, @selection) ->
-    @selection.setScope(@editableNode)
+  constructor: (@rootNode, @selection) ->
+    @selection.setScope(@rootNode)
 
   select: (args...) -> @selection.select(args...)
 
   wrapNode: ->
     ## TODO
     return @
+
+  normalize: -> @rootNode.normalize()
 
   backColor: (color) -> @_ec("backColor", false, color)
   bold: -> @_ec("bold", false)
