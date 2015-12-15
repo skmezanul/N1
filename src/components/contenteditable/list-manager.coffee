@@ -2,10 +2,9 @@ _str = require 'underscore.string'
 {DOMUtils, ContenteditableExtension} = require 'nylas-exports'
 
 class ListManager extends ContenteditableExtension
-  @onContentChanged: (editor) ->
-    selection = editor.selection
-    if @_spaceEntered and @hasListStartSignature(selection)
-      @createList(null, selection)
+  @onContentChanged: (editor, mutations) ->
+    if @_spaceEntered and @hasListStartSignature(editor.selection)
+      @createList(editor)
 
   @onKeyDown: (editor, event) ->
     @_spaceEntered = event.key is " "
@@ -18,7 +17,7 @@ class ListManager extends ContenteditableExtension
         if event.shiftKey
           @outdentListItem(editor)
         else
-          document.execCommand("indent")
+          editor.indent()
       else
         # Do nothing, let the event through.
         @originalInput = null
@@ -38,22 +37,21 @@ class ListManager extends ContenteditableExtension
     text = selection.anchorNode.textContent
     return @numberRegex().test(text) or @bulletRegex().test(text)
 
-  @createList: (event, selection) ->
-    text = selection.anchorNode?.textContent
+  @createList: (editor) ->
+    text = editor.selection.anchorNode?.textContent
 
     if @numberRegex().test(text)
       @originalInput = text[0...3]
-      document.execCommand("insertOrderedList")
-      @removeListStarter(@numberRegex(), selection)
+      editor.insertOrderedList()
+      @removeListStarter(@numberRegex(), editor.selection)
     else if @bulletRegex().test(text)
       @originalInput = text[0...2]
-      document.execCommand("insertUnorderedList")
-      @removeListStarter(@bulletRegex(), selection)
+      editor.insertUnorderedList()
+      @removeListStarter(@bulletRegex(), editor.selection)
     else
       return
-    el = DOMUtils.closest(selection.anchorNode, "li")
+    el = DOMUtils.closest(editor.selection.anchorNode, "li")
     DOMUtils.Mutating.removeEmptyNodes(el)
-    event?.preventDefault()
 
   @removeListStarter: (starterRegex, selection) ->
     el = DOMUtils.closest(selection.anchorNode, "li")

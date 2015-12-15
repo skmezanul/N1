@@ -3,10 +3,11 @@
 # Muates the DOM and Selection in atomic and predictable ways.
 class Editor
   constructor: (@editableNode, @selection) ->
+    @selection.setScope(@editableNode)
 
-  select: (arg) ->
-    ## TODO
-    return @
+  select: (args...) -> @selection.select(args...)
+  exportSelection: (args...) -> @selection.exportSelection(args...)
+  importSelection: (args...) -> @selection.importSelection(args...)
 
   wrapNode: ->
     ## TODO

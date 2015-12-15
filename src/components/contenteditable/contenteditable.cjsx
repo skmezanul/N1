@@ -7,6 +7,7 @@ ClipboardService = require './clipboard-service'
 FloatingToolbarContainer = require './floating-toolbar-container'
 
 Editor = require './editor'
+Selection = require './selection'
 ListManager = require './list-manager'
 
 ###
@@ -70,11 +71,35 @@ class Contenteditable extends React.Component
   # mutations happened).
   atomicEdit: (editingFunction, extraArgs...) =>
     @_teardownListeners()
-    editor = new Editor(@_editableNode(), document.getSelection())
+    mutationAccumulator = @_tempMutationObserver()
+
+    editor = new Editor(@_editableNode(), new Selection())
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
+
+    mutations = mutationAccumulator.disconnect()
     @_setupListeners()
-    @_onDOMMutated()
+    @_onDOMMutated(mutations)
+
+
+  # When we're performing an `atomicEdit` we use this to accumulate
+  # changes that happen during this time. We can then pass the full set of
+  # those changes at once to `onContentChanged`
+  _tempMutationObserver: ->
+    editableNode = @_editableNode()
+    mutationConfig = @_mutationConfig()
+    class TempObserver
+      constructor: ->
+        @mutations = []
+        @observer = new MutationObserver (newMutations=[]) =>
+          @mutations = @mutations.concat(newMutations)
+        @observer.observe(editableNode, mutationConfig)
+
+      disconnect: ->
+        @observer.disconnect()
+        return @mutations
+
+    return new TempObserver()
 
   constructor: (@props) ->
     @innerState = {}
@@ -205,11 +230,13 @@ class Contenteditable extends React.Component
   _onCompositionStart: =>
     @_inCompositionEvent = true
     @_teardownListeners()
+    @_compositionMutationAccumulator = @_tempMutationObserver()
 
   _onCompositionEnd: =>
     @_inCompositionEvent = false
     @_setupListeners()
-    @_onDOMMutated()
+    mutations = @_compositionMutationAccumulator?.disconnect()
+    @_onDOMMutated(mutations)
 
   _runCallbackOnExtensions: (method, args...) =>
     for extension in @props.extensions.concat(@coreExtensions)
@@ -756,38 +783,19 @@ class Contenteditable extends React.Component
   _onSaveUrl: (url, linkToModify) =>
     if linkToModify?
       linkToModify = DOMUtils.findSimilarNodes(@_editableNode(), linkToModify)?[0]?.childNodes[0]
-
       return unless linkToModify?
       return if linkToModify.getAttribute?('href').trim() is url.trim()
 
-      range =
-        anchorNode: linkToModify
-        anchorOffset: 0
-        focusNode: linkToModify
-        focusOffset: linkToModify.length
-
       if url.trim().length is 0
-        @_execCommand ["unlink", false], range
-      else @_execCommand ["createLink", false, url], range
-
+        fn = (editor) -> editor.select(linkToModify).unlink()
+      else
+        fn = (editor) -> editor.select(linkToModify).createLink(url)
+      @atomicEdit(fn)
     else
-      @_restoreSelection(force: true)
-      if not document.getSelection().isCollapsed
-        if url.trim().length is 0
-          @_execCommand ["unlink", false]
-        else @_execCommand ["createLink", false, url]
-        @_restoreSelection(force: true, collapse: "end")
-
-    return
-
-  _execCommand: (commandArgs=[], selectionRange={}) =>
-    {anchorNode, anchorOffset, focusNode, focusOffset} = selectionRange
-    @_teardownListeners()
-    if anchorNode and focusNode
-      selection = document.getSelection()
-      selection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset)
-    document.execCommand.apply(document, commandArgs)
-    @_setupListeners()
-    @_onDOMMutated()
+      if url.trim().length is 0
+        fn = (editor) => editor.importSelection(@_selection).unlink()
+      else
+        fn = (editor) => editor.importSelection(@_selection).createLink(url)
+      @atomicEdit fn
 
 module.exports = Contenteditable
