@@ -2,20 +2,21 @@ _str = require 'underscore.string'
 {DOMUtils, ContenteditableExtension} = require 'nylas-exports'
 
 class ListManager extends ContenteditableExtension
-  @onContentChanged: (editableNode, selection) ->
+  @onContentChanged: (editor) ->
+    selection = editor.selection
     if @_spaceEntered and @hasListStartSignature(selection)
       @createList(null, selection)
 
-  @onKeyDown: (editableNode, selection, event) ->
+  @onKeyDown: (editor, event) ->
     @_spaceEntered = event.key is " "
     if DOMUtils.isInList()
       if event.key is "Backspace" and DOMUtils.atStartOfList()
         event.preventDefault()
-        @outdentListItem(selection)
-      else if event.key is "Tab" and selection.isCollapsed
+        @outdentListItem(editor)
+      else if event.key is "Tab" and editor.selection.isCollapsed
         event.preventDefault()
         if event.shiftKey
-          @outdentListItem(selection)
+          @outdentListItem(editor)
         else
           document.execCommand("indent")
       else
@@ -70,8 +71,8 @@ class ListManager extends ContenteditableExtension
   # From a list with content
   # Outent returns to <div>sometext</div>
   # We need to turn that into <div>-&nbsp;sometext</div>
-  @restoreOriginalInput: (selection) ->
-    node = selection.anchorNode
+  @restoreOriginalInput: (editor) ->
+    node = editor.selection.anchorNode
     return unless node
     if node.nodeType is Node.TEXT_NODE
       node.textContent = @originalInput + node.textContent
@@ -83,17 +84,17 @@ class ListManager extends ContenteditableExtension
         textNode.textContent = @originalInput + textNode.textContent
 
     if @numberRegex().test(@originalInput)
-      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(selection, 3) # digit plus dot
+      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(editor.selection, 3) # digit plus dot
     if @bulletRegex().test(@originalInput)
-      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(selection, 2) # dash or star
+      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(editor.selection, 2) # dash or star
 
     @originalInput = null
 
-  @outdentListItem: (selection) ->
+  @outdentListItem: (editor) ->
     if @originalInput
-      document.execCommand("outdent")
-      @restoreOriginalInput(selection)
+      editor.outdent()
+      @restoreOriginalInput(editor)
     else
-      document.execCommand("outdent")
+      editor.outdent()
 
 module.exports = ListManager
