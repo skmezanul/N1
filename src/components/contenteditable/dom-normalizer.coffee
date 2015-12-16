@@ -1,4 +1,4 @@
-{ContenteditableExtension} = require 'nylas-exports'
+{ContenteditableExtension, DOMUtils} = require 'nylas-exports'
 
 class DOMNormalizer extends ContenteditableExtension
 
