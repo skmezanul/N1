@@ -23,6 +23,8 @@ class Selection
     else if args.length is 1
       if args[0] instanceof ExportedSelection
         @importSelection(args[0])
+      else if args[0] instanceof Range
+        @selectRange(args[0])
       else
         @selectAt(args[0])
     else if args.length is 2
@@ -37,6 +39,9 @@ class Selection
   selectAt: (at) ->
     nodeAt = @findNodeAt(at)
     @setBaseAndExtent(nodeAt, 0, nodeAt, (nodeAt.length ? 0))
+
+  selectRange: (range) ->
+    @setBaseAndExtent(range.startContainer, range.startOffset, range.endContainer, range.endOffset)
 
   selectFromTo: (from, to) ->
     fromNode = @findNodeAt(from)
