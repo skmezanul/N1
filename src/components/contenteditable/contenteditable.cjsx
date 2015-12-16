@@ -78,11 +78,11 @@ class Contenteditable extends React.Component
   If the current selection at the time of running the extension is out of
   scope, it will be set to the last saved state. This ensures extensions
   operate on a valid Selection.
+
+  Edits made within the editing function will eventually fire _onDOMMutated
   ###
   atomicEdit: (editingFunction, extraArgs...) =>
     @_teardownListeners()
-    @_atomicEditMutations = []
-    @_atomicEditObserver.observe(@_editableNode(), @_mutationConfig())
 
     editor = new Editor(@_editableNode())
 
@@ -92,13 +92,7 @@ class Contenteditable extends React.Component
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
 
-    @_atomicEditObserver.disconnect()
     @_setupListeners()
-    @_onDOMMutated(@_atomicEditMutations)
-
-  _onAtomicEditMutation: (mutations) =>
-    @_atomicEditMutations ?= []
-    @_atomicEditMutations.push(mutations)
 
   focus: => @_editableNode().focus()
 
@@ -112,13 +106,13 @@ class Contenteditable extends React.Component
   constructor: (@props) ->
     @innerState = {}
     @_mutationObserver = new MutationObserver(@_onDOMMutated)
-    @_atomicEditObserver = new MutationObserver(@_onAtomicEditMutation)
 
   componentWillMount: =>
     @_setupServices()
 
   componentDidMount: =>
     @_setupListeners()
+    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     @setInnerState editableNode: @_editableNode()
 
   # When we have a composition event in progress, we should not update
@@ -135,11 +129,14 @@ class Contenteditable extends React.Component
   componentDidUpdate: =>
     @_restoreSelection()
     @_refreshServices()
+    @_mutationObserver.disconnect()
+    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     @setInnerState
       links: @_editableNode().querySelectorAll("*[href]")
       editableNode: @_editableNode()
 
   componentWillUnmount: =>
+    @_mutationObserver.disconnect()
     @_teardownListeners()
     @_teardownServices()
 
@@ -220,13 +217,11 @@ class Contenteditable extends React.Component
 
   _setupListeners: =>
     @_ignoreMutationChanges = false
-    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     document.addEventListener("selectionchange", @_onSelectionChange)
     @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
 
   _teardownListeners: =>
     document.removeEventListener("selectionchange", @_onSelectionChange)
-    @_mutationObserver.disconnect()
     @_ignoreMutationChanges = true
     @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
 
@@ -298,12 +293,12 @@ class Contenteditable extends React.Component
   _onCompositionStart: =>
     @_inCompositionEvent = true
     @_teardownListeners()
-    @_compositionMutationAccumulator = @_tempMutationObserver()
+    @_mutationObserver.disconnect()
 
   _onCompositionEnd: =>
     @_inCompositionEvent = false
     @_setupListeners()
-    mutations = @_compositionMutationAccumulator?.disconnect()
+    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     @_onDOMMutated(mutations)
 
   _onShowContextMenu: (event) =>
