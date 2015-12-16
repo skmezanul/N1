@@ -69,7 +69,7 @@ class MouseService extends ContenteditableService
     selection = document.getSelection()
     return event unless DOMUtils.selectionInScope(selection, editableNode)
 
-    @runEventCallbackOnExtensions("onClick", event)
+    # @runEventCallbackOnExtensions("onClick", event)
     return event
 
   _onDragStart: (event) =>

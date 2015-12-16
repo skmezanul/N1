@@ -96,10 +96,11 @@ class FloatingToolbarContainer extends React.Component
   _onSaveUrl: (url, linkToModify) =>
     @props.atomicEdit (editor) ->
       if linkToModify?
-        linkToModify = DOMUtils.findSimilarNodes(editor.rootNode, linkToModify)?[0]?.childNodes[0]
-        return unless linkToModify?
-        return if linkToModify.getAttribute?('href').trim() is url.trim()
-        toSelect = linkToModify
+        equivalentNode = DOMUtils.findSimilarNodes(editor.rootNode, linkToModify)?[0]
+        return unless equivalentNode?
+        equivalentLinkText = DOMUtils.findFirstTextNode(equivalentNode)
+        return if linkToModify.getAttribute?('href')?.trim() is url.trim()
+        toSelect = equivalentLinkText
       else
         # When atomicEdit gets run, the exportedSelection is already restored to
         # the last saved exportedSelection state. Any operation we perform will
@@ -118,7 +119,7 @@ class FloatingToolbarContainer extends React.Component
   # renders them.
   _toolbarButtonConfigs: ->
     atomicEditWrap = (command) => (event) =>
-      @props.atomicEdit(((editor)-> editor[command]), event)
+      @props.atomicEdit(((editor)-> editor[command]()), event)
 
     extensionButtonConfigs = []
     ExtensionRegistry.Composer.extensions().forEach (ext) ->

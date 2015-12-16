@@ -91,22 +91,6 @@ class FloatingToolbar extends React.Component
       {@_toolbarType()}
     </div>
 
-  _onSaveUrl: (url, linkToModify) =>
-    @props.atomicEdit (editor) ->
-      if linkToModify?
-        linkToModify = DOMUtils.findSimilarNodes(@_editableNode(), linkToModify)?[0]?.childNodes[0]
-        return unless linkToModify?
-        return if linkToModify.getAttribute?('href').trim() is url.trim()
-        toSelect = linkToModify
-      else
-        toSelect = @innerState.selection
-
-      if url.trim().length is 0
-        fn = (editor) -> editor.select(toSelect).unlink()
-      else
-        fn = (editor) -> editor.select(toSelect).createLink(url)
-
-
   _toolbarClasses: =>
     classes = {}
     classes[@props.pos] = true
@@ -197,7 +181,7 @@ class FloatingToolbar extends React.Component
   # case we also want to remove the link.
   _removeUrl: =>
     @setState urlInputValue: ""
-    @_onSaveUrl "", @props.linkToModify
+    @props.onSaveUrl "", @props.linkToModify
     @props.onDoneWithLink()
 
   _onFocus: =>
@@ -221,7 +205,7 @@ class FloatingToolbar extends React.Component
 
   _saveUrl: =>
     if (@state.urlInputValue ? "").trim().length > 0
-      @_onSaveUrl @state.urlInputValue, @props.linkToModify
+      @props.onSaveUrl @state.urlInputValue, @props.linkToModify
     @props.onDoneWithLink()
 
   _toolbarLeft: =>

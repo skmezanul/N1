@@ -81,7 +81,8 @@ class Contenteditable extends React.Component
   ###
   atomicEdit: (editingFunction, extraArgs...) =>
     @_teardownListeners()
-    mutationAccumulator = @_tempMutationObserver()
+    @_atomicEditMutations = []
+    @_atomicEditObserver.observe(@_editableNode(), @_mutationConfig())
 
     sel = new Selection(@_editableNode())
     if not sel.isInScope() then sel.importSelection(@innerState.exportedSelection)
@@ -89,9 +90,13 @@ class Contenteditable extends React.Component
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
 
-    mutations = mutationAccumulator.disconnect()
+    @_atomicEditObserver.disconnect()
     @_setupListeners()
-    @_onDOMMutated(mutations)
+    @_onDOMMutated(@_atomicEditMutations)
+
+  _onAtomicEditMutation: (mutations) =>
+    @_atomicEditMutations ?= []
+    @_atomicEditMutations.push(mutations)
 
   focus: => @_editableNode().focus()
 
@@ -102,7 +107,10 @@ class Contenteditable extends React.Component
   ########################### React Lifecycle ############################
   ########################################################################
 
-  constructor: (@props) -> @innerState = {}
+  constructor: (@props) ->
+    @innerState = {}
+    @_mutationObserver = new MutationObserver(@_onDOMMutated)
+    @_atomicEditObserver = new MutationObserver(@_onAtomicEditMutation)
 
   componentWillMount: =>
     @_setupServices()
@@ -210,8 +218,6 @@ class Contenteditable extends React.Component
 
   _setupListeners: =>
     @_ignoreMutationChanges = false
-    @_mutationObserver?.disconnect()
-    @_mutationObserver = new MutationObserver(@_onDOMMutated)
     @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     document.addEventListener("selectionchange", @_onSelectionChange)
     @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
@@ -230,25 +236,6 @@ class Contenteditable extends React.Component
     characterData: true
     attributeOldValue: true
     characterDataOldValue: true
-
-  # When we're performing an `atomicEdit` we use this to accumulate
-  # changes that happen during this time. We can then pass the full set of
-  # those changes at once to `onContentChanged`
-  _tempMutationObserver: ->
-    editableNode = @_editableNode()
-    mutationConfig = @_mutationConfig()
-    class TempObserver
-      constructor: ->
-        @mutations = []
-        @observer = new MutationObserver (newMutations=[]) =>
-          @mutations = @mutations.concat(newMutations)
-        @observer.observe(editableNode, mutationConfig)
-
-      disconnect: ->
-        @observer.disconnect()
-        return @mutations
-
-    return new TempObserver()
 
 
   ########################################################################

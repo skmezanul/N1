@@ -11,13 +11,17 @@ class Editor
   constructor: (@rootNode, @selection) ->
     @selection.setScope(@rootNode)
 
-  select: (args...) -> @selection.select(args...)
+  select: (args...) ->
+    @selection.select(args...)
+    return @
 
   wrapNode: ->
     ## TODO
     return @
 
-  normalize: -> @rootNode.normalize()
+  normalize: ->
+    @rootNode.normalize()
+    return @
 
   backColor: (color) -> @_ec("backColor", false, color)
   bold: -> @_ec("bold", false)
