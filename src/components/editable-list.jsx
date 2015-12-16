@@ -18,6 +18,7 @@ import React, {Component, PropTypes} from 'react';
  * @param {object} props - props for EditableList
  * @param {(Component|string|number)} props.children - Items to be rendered by
  * the list
+ * @param {number} props.selected - TODO
  * @param {string} props.className - CSS class to be applied to component
  * @param {boolean} props.allowEmptySelection - Determines wether the
  * EditableList will allow to have no selected items
@@ -79,6 +80,7 @@ class EditableList extends Component {
       PropTypes.number,
       PropTypes.element,
     ])),
+    selected: PropTypes.number,
     className: PropTypes.string,
     allowEmptySelection: PropTypes.bool,
     showEditIcon: PropTypes.bool,
@@ -93,10 +95,11 @@ class EditableList extends Component {
 
   static defaultProps = {
     children: [],
+    selected: null,
     className: '',
-    createInputProps: {},
     allowEmptySelection: true,
     showEditIcon: false,
+    createInputProps: {},
     onDeleteItem: ()=> {},
     onItemEdited: ()=> {},
     onItemSelected: ()=> {},
@@ -108,7 +111,6 @@ class EditableList extends Component {
     this._beganEditing = false;
     this.state = props.initialState || {
       editing: null,
-      selected: (props.allowEmptySelection ? null : 0),
       creatingItem: false,
     };
   }
@@ -129,10 +131,8 @@ class EditableList extends Component {
   }
 
   _selectItem = (item, idx)=> {
-    if (this.state.selected !== idx) {
-      this.setState({selected: idx}, ()=> {
-        this.props.onItemSelected(item, idx);
-      });
+    if (this.props.selected !== idx) {
+      this.props.onItemSelected(item, idx);
     }
   }
 
@@ -215,7 +215,7 @@ class EditableList extends Component {
 
   _onListBlur = ()=> {
     if (!this._beganEditing && this.props.allowEmptySelection) {
-      this.setState({selected: null});
+      this._selectItem(null, null);
     }
   }
 
@@ -226,7 +226,7 @@ class EditableList extends Component {
       'ArrowDown': (sel)=> sel === len - 1 ? sel : sel + 1,
       'Escape': (sel)=> this.props.allowEmptySelection ? null : sel,
     };
-    const selected = (handle[event.key] || ((sel)=> sel))(this.state.selected);
+    const selected = (handle[event.key] || ((sel)=> sel))(this.props.selected);
     this._scrollTo(selected);
     this._selectItem(this.props.children[selected], selected);
   }
@@ -245,8 +245,9 @@ class EditableList extends Component {
     if (selectedItem) {
       // Move the selection 1 up after deleting
       const len = this.props.children.length;
-      const selected = len === 1 ? null : Math.max(0, this.state.selected - 1);
-      this.setState({selected});
+      const newlySelected = len === 1 ? null : Math.max(0, this.state.selected - 1);
+      const newlySelectedItem = this.props.children[newlySelected];
+      this._selectItem(newlySelectedItem, newlySelected);
 
       this.props.onDeleteItem(selectedItem, idx);
     }
@@ -293,7 +294,7 @@ class EditableList extends Component {
   }
 
   // handlers object for testing
-  _renderItem = (item, idx, {editing, selected} = this.state, handlers = {})=> {
+  _renderItem = (item, idx, editing = this.state.editing, selected = this.props.selected, handlers = {})=> {
     const onClick = handlers.onClick || this._onItemClick;
     const onEdit = handlers.onEdit || this._onItemEdit;
 
@@ -365,4 +366,66 @@ class EditableList extends Component {
 
 }
 
-export default EditableList;
+/**
+ * @private
+ * TODO Refactor decorators outside of this file
+ * This Higher order component makes the EditableList behave like a "Controlled"
+ * component, similar to React's controlled form inputs.
+ *
+ * If the parent component provides a `selected` prop, it becomes the parent's
+ * responsibility to provide the `onItemSelected` callback to update the selection
+ * inside the list -- if the callback isn't provided, the selection wont be updated.
+ * E.g.:
+ *
+ * ```
+ * _onItemSelected(item, idx) {
+ *   this.setState({selected: idx});
+ * }
+ *
+ * render() {
+ *   <EditableList selected={this.state.selected} onItemSelected={this._onItemSelected}>
+ *     {this.state.items}
+ *   </EditableList>
+ * }
+ * ```
+ *
+ * If the `selected` prop is not provided, the list will manage the selection
+ * state automatically (internally).
+ */
+const ControlledList = (List)=> {
+  return (
+    class extends Component {
+      static propTypes = {
+        selected: PropTypes.number,
+        allowEmptySelection: PropTypes.bool,
+        onItemSelected: PropTypes.func,
+      }
+
+      static defaultProps = {
+        allowEmptySelection: true,
+        onItemSelected: ()=> {},
+      }
+
+      constructor(props) {
+        super(props);
+        this.state = {
+          selected: props.allowEmptySelection ? null : 0,
+        };
+      }
+
+      _onItemSelected = (item, idx)=> {
+        this.setState({selected: idx});
+        this.props.onItemSelected(item, idx);
+      }
+
+      render() {
+        if (this.props.selected != null) {
+          return <List {...this.props} />;
+        }
+        return <List {...this.props} selected={this.state.selected} onItemSelected={this._onItemSelected} />;
+      }
+    }
+  );
+};
+
+export default ControlledList(EditableList);
