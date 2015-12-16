@@ -216,13 +216,11 @@ class Contenteditable extends React.Component
     return keymapHandlers
 
   _setupListeners: =>
-    @_ignoreMutationChanges = false
     document.addEventListener("selectionchange", @_onSelectionChange)
     @_editableNode().addEventListener('contextmenu', @_onShowContextMenu)
 
   _teardownListeners: =>
     document.removeEventListener("selectionchange", @_onSelectionChange)
-    @_ignoreMutationChanges = true
     @_editableNode().removeEventListener('contextmenu', @_onShowContextMenu)
 
   # https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
@@ -248,10 +246,9 @@ class Contenteditable extends React.Component
   # At all other times we take the change, apply various filters to the
   # new content, then notify our parent that the content has been updated.
   _onDOMMutated: (mutations) =>
-    return if @_ignoreMutationChanges
     return unless mutations and mutations.length > 0
 
-    @_ignoreMutationChanges = true
+    @_mutationObserver.disconnect()
     @setInnerState dragging: false if @innerState.dragging
     @setInnerState doubleDown: false if @innerState.doubleDown
 
@@ -261,7 +258,7 @@ class Contenteditable extends React.Component
 
     @props.onChange(target: {value: @_editableNode().innerHTML})
 
-    @_ignoreMutationChanges = false
+    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
     return
 
   _onBlur: (event) =>
@@ -293,13 +290,10 @@ class Contenteditable extends React.Component
   _onCompositionStart: =>
     @_inCompositionEvent = true
     @_teardownListeners()
-    @_mutationObserver.disconnect()
 
   _onCompositionEnd: =>
     @_inCompositionEvent = false
     @_setupListeners()
-    @_mutationObserver.observe(@_editableNode(), @_mutationConfig())
-    @_onDOMMutated(mutations)
 
   _onShowContextMenu: (event) =>
     @refs["toolbarController"]?.forceClose()
