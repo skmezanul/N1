@@ -84,9 +84,11 @@ class Contenteditable extends React.Component
     @_atomicEditMutations = []
     @_atomicEditObserver.observe(@_editableNode(), @_mutationConfig())
 
-    sel = new Selection(@_editableNode())
-    if not sel.isInScope() then sel.importSelection(@innerState.exportedSelection)
-    editor = new Editor(@_editableNode(), sel)
+    editor = new Editor(@_editableNode())
+
+    if not editor.currentSelection().isInScope()
+      editor.importSelection(@innerState.exportedSelection)
+
     args = [editor, extraArgs...]
     editingFunction.apply(null, args)
 
@@ -100,7 +102,7 @@ class Contenteditable extends React.Component
 
   focus: => @_editableNode().focus()
 
-  selectEnd: => @atomicEdit (editor) -> editor.selection.selectEnd()
+  selectEnd: => @atomicEdit (editor) -> editor.selectEnd()
 
 
   ########################################################################

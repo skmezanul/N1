@@ -5,11 +5,9 @@ ExportedSelection = require './exported-selection'
 # Convenience methods over the DOM's Selection object
 # https://developer.mozilla.org/en-US/docs/Web/API/Selection
 class Selection
-  constructor: (@scopeNode, @rawSelection) ->
+  constructor: (@scopeNode) ->
     @scopeNode ?= document.body
-    @rawSelection ?= document.getSelection()
-
-  setScope: (@scopeNode) ->
+    @rawSelection = document.getSelection()
 
   isInScope: ->
     @anchorNode? and

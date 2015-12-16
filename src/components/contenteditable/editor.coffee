@@ -1,3 +1,5 @@
+Selection = require './selection'
+
 # An extended interface of execCommand
 #
 # Muates the DOM and Selection in atomic and predictable ways.
@@ -7,32 +9,42 @@
 # codeTags.forEach (tag) ->
 #   if testTag(tag) DOMUtils.unwrap(tag)
 #
+# fn: ->
+#   editor.moveDown().indent().selectRight(2).wrapSelection().bold().moveToEnd()
+#
+#   editor.moveDown()
+#   editor.selectRight()
+#   editor.bold()
+#   editor.indent()
+#   editor.moveToEnd()
+#
+#   moveToEnd bold selectRight moveDown current()
+#
 class Editor
-  constructor: (@rootNode, @selection) ->
-    @selection.setScope(@rootNode)
+  constructor: (@rootNode) ->
+    @_selection = new Selection(@rootNode)
 
-  select: (args...) ->
-    @selection.select(args...)
-    return @
-
-  wrapNode: ->
+  wrapSelection: ->
     ## TODO
     return @
 
-  normalize: ->
-    @rootNode.normalize()
-    return @
+  currentSelection: -> @_selection
+
+  collapse: (args...) -> @_selection.collapse(args...); @
+  collapseToStart: (args...) -> @_selection.collapseToStart(args...); @
+  collapseToEnd: (args...) -> @_selection.collapseToEnd(args...); @
+  importSelection: (args...) -> @_selection.importSelection(args...); @
+  select: (args...) -> @_selection.select(args...); @
+  selectEnd: (args...) -> @_selection.selectEnd(args...); @
+  selectAllChildren: (args...) -> @_selection.selectAllChildren(args...); @
 
   backColor: (color) -> @_ec("backColor", false, color)
   bold: -> @_ec("bold", false)
-  contentReadOnly: -> @_notImplemented()
   copy: -> @_ec("copy", false)
   createLink: (uri) -> @_ec("createLink", false, uri)
   cut: -> @_ec("cut", false)
   decreaseFontSize: -> @_ec("decreaseFontSize", false)
   delete: -> @_ec("delete", false)
-  enableInlineTableEditing: -> @_notImplemented()
-  enableObjectResizing: -> @_notImplemented()
   fontName: (fontName) -> @_ec("fontName", false, fontName)
   fontSize: (fontSize) -> @_ec("fontSize", false, fontSize)
   foreColor: (color) -> @_ec("foreColor", false, color)
@@ -42,7 +54,6 @@ class Editor
   hiliteColor: (color) -> @_ec("hiliteColor", false, color)
   increaseFontSize: -> @_ec("increaseFontSize", false)
   indent: -> @_ec("indent", false)
-  insertBrOnReturn: -> @_notImplemented()
   insertHorizontalRule: -> @_ec("insertHorizontalRule", false)
   insertHTML: (html) -> @_ec("insertHTML", false, html)
   insertImage: (uri) -> @_ec("insertImage", false, uri)
@@ -66,8 +77,15 @@ class Editor
   underline: -> @_ec("underline", false)
   undo: -> @_ec("undo", false)
   unlink: -> @_ec("unlink", false)
-  useCSS: -> @_notImplemented()
   styleWithCSS: (style) -> @_ec("styleWithCSS", false, style)
+
+  normalize: -> @rootNode.normalize(); @
+
+  contentReadOnly: -> @_notImplemented()
+  enableInlineTableEditing: -> @_notImplemented()
+  enableObjectResizing: -> @_notImplemented()
+  insertBrOnReturn: -> @_notImplemented()
+  useCSS: -> @_notImplemented()
 
   _ec: (args...) -> document.execCommand(args...); return @
   _notImplemented: -> throw new Error("Not implemented")

@@ -13,7 +13,7 @@ class TabManager extends ContenteditableExtension
       return
 
   @_onTabDownDefaultBehavior: (editor, event) ->
-    selection = editor.selection
+    selection = editor.currentSelection()
     if selection?.isCollapsed
       if event.shiftKey
         if DOMUtils.isAtTabChar(selection)
@@ -31,10 +31,10 @@ class TabManager extends ContenteditableExtension
     event.stopPropagation()
 
   @_removeLastCharacter: (editor) ->
-    if DOMUtils.isSelectionInTextNode(editor.selection)
-      node = editor.selection.anchorNode
-      offset = editor.selection.anchorOffset
-      editor.selection.setBaseAndExtent(node, offset - 1, node, offset)
+    if DOMUtils.isSelectionInTextNode(editor.currentSelection())
+      node = editor.currentSelection().anchorNode
+      offset = editor.currentSelection().anchorOffset
+      editor.currentSelection().setBaseAndExtent(node, offset - 1, node, offset)
       editor.delete()
 
 module.exports = TabManager

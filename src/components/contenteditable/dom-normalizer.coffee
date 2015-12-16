@@ -63,7 +63,7 @@ class DOMNormalizer extends ContenteditableExtension
   # each of those scenarios before we save and later restore the
   # selection.
   @_cleanSelection: (editor) ->
-    selection = editor.selection
+    selection = editor.currentSelection()
     return unless selection.anchorNode? and selection.focusNode?
 
     # The _unselectableNode case only is valid when it's at the very top

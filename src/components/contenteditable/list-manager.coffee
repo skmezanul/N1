@@ -3,7 +3,7 @@ _str = require 'underscore.string'
 
 class ListManager extends ContenteditableExtension
   @onContentChanged: (editor, mutations) ->
-    if @_spaceEntered and @hasListStartSignature(editor.selection)
+    if @_spaceEntered and @hasListStartSignature(editor.currentSelection())
       @createList(editor)
 
     @_collapseAdjacentLists(editor)
@@ -14,7 +14,7 @@ class ListManager extends ContenteditableExtension
       if event.key is "Backspace" and DOMUtils.atStartOfList()
         event.preventDefault()
         @outdentListItem(editor)
-      else if event.key is "Tab" and editor.selection.isCollapsed
+      else if event.key is "Tab" and editor.currentSelection().isCollapsed
         event.preventDefault()
         if event.shiftKey
           @outdentListItem(editor)
@@ -40,19 +40,19 @@ class ListManager extends ContenteditableExtension
     return @numberRegex().test(text) or @bulletRegex().test(text)
 
   @createList: (editor) ->
-    text = editor.selection.anchorNode?.textContent
+    text = editor.currentSelection().anchorNode?.textContent
 
     if @numberRegex().test(text)
       @originalInput = text[0...3]
       editor.insertOrderedList()
-      @removeListStarter(@numberRegex(), editor.selection)
+      @removeListStarter(@numberRegex(), editor.currentSelection())
     else if @bulletRegex().test(text)
       @originalInput = text[0...2]
       editor.insertUnorderedList()
-      @removeListStarter(@bulletRegex(), editor.selection)
+      @removeListStarter(@bulletRegex(), editor.currentSelection())
     else
       return
-    el = DOMUtils.closest(editor.selection.anchorNode, "li")
+    el = DOMUtils.closest(editor.currentSelection().anchorNode, "li")
     DOMUtils.Mutating.removeEmptyNodes(el)
 
   @removeListStarter: (starterRegex, selection) ->
@@ -72,7 +72,7 @@ class ListManager extends ContenteditableExtension
   # Outent returns to <div>sometext</div>
   # We need to turn that into <div>-&nbsp;sometext</div>
   @restoreOriginalInput: (editor) ->
-    node = editor.selection.anchorNode
+    node = editor.currentSelection().anchorNode
     return unless node
     if node.nodeType is Node.TEXT_NODE
       node.textContent = @originalInput + node.textContent
@@ -84,9 +84,9 @@ class ListManager extends ContenteditableExtension
         textNode.textContent = @originalInput + textNode.textContent
 
     if @numberRegex().test(@originalInput)
-      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(editor.selection, 3) # digit plus dot
+      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(editor.currentSelection(), 3) # digit plus dot
     if @bulletRegex().test(@originalInput)
-      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(editor.selection, 2) # dash or star
+      DOMUtils.Mutating.moveSelectionToIndexInAnchorNode(editor.currentSelection(), 2) # dash or star
 
     @originalInput = null
 
