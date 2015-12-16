@@ -101,7 +101,7 @@ class ListManager extends ContenteditableExtension
   # collapse them into one. We leave adjacent <ol> lists intact in case
   # the user wanted to restart the numbering sequence
   @_collapseAdjacentLists: (editor) ->
-    els = editor.rootNode.querySelectorAll('ul')
+    els = editor.rootNode.querySelectorAll('ul, ol')
 
     # This mutates the DOM in place.
     DOMUtils.Mutating.collapseAdjacentElements(els)

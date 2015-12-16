@@ -239,5 +239,6 @@ class AccountStore
       DatabaseStore.persistModels(threads)
     ]).then =>
       Actions.selectAccount account.id
+    .then -> new Promise (resolve, reject) -> setTimeout(resolve, 1000)
 
 module.exports = new AccountStore()
