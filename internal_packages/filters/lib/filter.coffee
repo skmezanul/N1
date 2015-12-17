@@ -1,81 +1,117 @@
 _ = require 'underscore'
-{Utils, CategoryStore} = require 'nylas-exports'
-ScenarioEditor = require './scenario-editor'
+{Utils,
+ CategoryStore,
+ Actions,
+ TaskQueueStatusStore} = require 'nylas-exports'
 NylasObservables = require 'nylas-observables'
+
+ScenarioEditor = require './scenario-editor'
+{Template} = ScenarioEditor
 
 RuleMode =
   Any: 'any'
   All: 'all'
 
-RuleComparator =
-  contains: ({actual, desired}) -> actual.toLowerCase().indexOf(desired.toLowerCase()) isnt -1
-  doesNotContain: ({actual, desired}) -> actual.toLowerCase().indexOf(desired.toLowerCase()) is -1
-  beginsWith: ({actual, desired}) -> actual.toLowerCase().indexOf(desired.toLowerCase()) is 0
-  endsWith: ({actual, desired}) -> actual.toLowerCase().lastIndexOf(desired.toLowerCase()) is actual.length - desired.length
-  equals: ({actual, desired}) -> actual is desired
+RuleTemplates = [
+  new Template('from', Template.Type.String, {
+    name: 'From',
+    valueForMessage: (message) ->
+      _.pluck(message.from, 'email')
+  })
 
-RuleComparatorNames =
-  'contains': 'contains'
-  'does not contain': 'doesNotContain'
-  'begins with': 'beginsWith'
-  'ends with': 'endsWith'
-  'equals': 'equals'
+  new Template('to', Template.Type.String, {
+    name: 'To',
+    valueForMessage: (message) ->
+      _.pluck(message.to, 'email')
+  })
 
-BaseRuleTemplates = [
-  new ScenarioEditor.Template.String('from', {name: 'From', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('to', {name: 'To', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('cc', {name: 'Cc', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('bcc', {name: 'Bcc', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('anyRecipient', {name: 'Any Recipient', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('anyAttachmentName', {name: 'Any attachment name', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('subject', {name: 'Subject', valueComparators: RuleComparatorNames})
-  new ScenarioEditor.Template.String('body', {name: 'Body', valueComparators: RuleComparatorNames})
+  new Template('cc', Template.Type.String, {
+    name: 'Cc',
+    valueForMessage: (message) ->
+      _.pluck(message.cc, 'email')
+  })
+
+  new Template('bcc', Template.Type.String, {
+    name: 'Bcc',
+    valueForMessage: (message) ->
+      _.pluck(message.bcc, 'email')
+  })
+
+  new Template('anyRecipient', Template.Type.String, {
+    name: 'Any Recipient',
+    valueForMessage: (message) ->
+      recipients = [].concat(message.to, message.cc, message.bcc, message.from)
+      _.pluck(recipients, 'email')
+  })
+
+  new Template('anyAttachmentName', Template.Type.String, {
+    name: 'Any attachment name',
+    valueForMessage: (message) ->
+      _.pluck(message.files, 'filename')
+  })
+
+  new Template('subject', Template.Type.String, {
+    name: 'Subject',
+    valueForMessage: (message) ->
+      message.subject
+  })
+
+  new Template('body', Template.Type.String, {
+    name: 'Body',
+    valueForMessage: (message) ->
+      message.body
+  })
 ]
 
-BaseActionTemplates = [
-  new ScenarioEditor.Template.Base('markAsRead', {name: 'Mark as read'})
-  new ScenarioEditor.Template.Base('star', {name: 'Star message'})
+ActionTemplates = [
+  new Template('markAsRead', Template.Type.None, {name: 'Mark as read'})
+  new Template('star', Template.Type.None, {name: 'Star message'})
 ]
+
 
 class Filter
   @RuleMode: RuleMode
 
   @RuleTemplatesForAccount: (account) ->
     return [] unless account
-    return BaseRuleTemplates
+    return RuleTemplates
 
   @ActionTemplatesForAccount: (account) ->
     return [] unless account
-    actions = [].concat(BaseActionTemplates)
+
+    templates = [].concat(ActionTemplates)
+
+    CategoryNamesObservable = NylasObservables.Categories
+      .forAccount(account)
+      .sort()
+      .map (cats) ->
+        cats.map (cat) ->
+          name: cat.displayName || cat.name
+          value: cat.id
 
     if account.usesLabels()
-      actions.push new ScenarioEditor.Template.Enum('applyCategory', {
+      templates.push new Template('applyLabel', Template.Type.Enum, {
         name: 'Apply Label'
-        values: NylasObservables.Categories.forAccount(account).sort().map (cats) ->
-          cats.map (cat) ->
-            name: cat.displayName || cat.name
-            value: cat.id
-        })
+        values: CategoryNamesObservable
+      })
 
     else
-      actions.push new ScenarioEditor.Template.Enum('applyCategory', {
+      templates.push new Template('changeFolder', Template.Type.Enum, {
         name: 'Move Message'
         valueLabel: 'to mailbox:'
-        values: NylasObservables.Categories.forAccount(account).sort().map (cats) ->
-          cats.map (cat) ->
-            name: cat.displayName || cat.name
-            value: cat.id
-        })
+        values: CategoryNamesObservable
+      })
 
-    actions
+    templates
 
   constructor: (properties) ->
     defaults =
       id: Utils.generateTempId()
+      accountId: undefined
       name: "Untitled Filter"
-      rules: [BaseRuleTemplates[0].createDefaultInstance()]
       ruleMode: RuleMode.All
-      actions: [BaseActionTemplates[0].createDefaultInstance()]
+      rules: [RuleTemplates[0].createDefaultInstance()]
+      actions: [ActionTemplates[0].createDefaultInstance()]
 
     _.extend(@, defaults, properties)
 
@@ -90,48 +126,27 @@ class Filter
     else
       fn = _.any
 
-    fn @rules, (rule) => @_matchesRule(message, rule)
-
-  _matchesRule: (message, rule) ->
-    if rule.key is 'anyRecipient'
-      value = [].concat(message.to, message.cc, message.bcc, message.from)
-    else if rule.key is 'anyAttachmentName'
-      value = message.files.map (f) -> f.filename
-    else
-      value = message[rule.key]
-
-    if rule.key in ['to', 'cc', 'bcc', 'from', 'anyRecipient']
-      value = value.map (c) -> c.email
-
-    if rule.valueComparator
-      matchFunction = RuleComparator[rule.valueComparator]
-      if not matchFunction
-        throw new Error("Filter::matches - unknown comparator: #{rule.valueComparator}")
-    else
-      matchFunction = RuleComparator['equals']
-
-    if value instanceof Array
-      return _.any value, (subvalue) -> matchFunction(actual: subvalue, desired: rule.value)
-    else
-      return matchFunction(actual: value, desired: rule.value)
+    fn @rules, (rule) =>
+      template = _.findWhere(RuleTemplates, {key: rule.templateKey})
+      value = template.valueForMessage(message)
+      template.evaluate(rule, value)
 
   applyTo: (message, thread) ->
     tasks = []
+
+    functions =
+      markAsRead: (message, thread, value) ->
+        new ChangeFolderTask(folder: action.value, threads: [thread])
+      star: (message, thread, value) ->
+        new ChangeStarredTask(starred: true, threads: [thread])
+      applyLabel: (message, thread, value) ->
+        new ChangeLabelsTask(labelsToAdd: [value], threads: [thread])
+      changeFolder: (message, thread, value) ->
+        new ChangeFolderTask(folder: value, threads: [thread])
+
     @_actions.forEach (action) ->
-      if action.type is "applyCategory"
-        tasks.push new ChangeFolderTask
-          folder: action.value
-          threads: [thread]
-
-      else if action.type is "markAsRead"
-        tasks.push new ChangeUnreadTask
-          unread: false
-          threads: [thread]
-
-      else if action.type is "star"
-        tasks.push new ChangeStarredTask
-          starred: true
-          threads: [thread]
+      task = functions[action.templateKey](message, thread, action)
+      tasks.push(task) if task
 
     promises = tasks.map(TaskQueueStatusStore.waitForPerformLocal)
     tasks.forEach(Actions.queueTask)

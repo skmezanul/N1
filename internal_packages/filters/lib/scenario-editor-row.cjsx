@@ -1,9 +1,10 @@
 React = require 'react'
 _ = require 'underscore'
 Rx = require 'rx-lite'
-ScenarioEditor = require './scenario-editor'
-{CategoryStore, Actions, Utils} = require 'nylas-exports'
 {RetinaImg, Flexbox} = require 'nylas-component-kit'
+{CategoryStore, Actions, Utils} = require 'nylas-exports'
+
+{Comparator, Template} = require './scenario-editor-models'
 
 class SourceSelect extends React.Component
   @displayName: 'SourceSelect'
@@ -57,9 +58,9 @@ class ScenarioEditorRow extends React.Component
   constructor: (@props) ->
 
   render: =>
-    template = _.findWhere(@props.templates, {key: @props.rule.key})
+    template = _.findWhere(@props.templates, {key: @props.rule.templateKey})
     unless template
-      return <span> Could not find template for rule key: {@props.rule.key}</span>
+      return <span> Could not find template for rule key: {@props.rule.templateKey}</span>
 
     <Flexbox direction="row" className="well-row">
       <span>
@@ -75,24 +76,37 @@ class ScenarioEditorRow extends React.Component
   _renderTemplateSelect: (template) =>
     options = @props.templates.map ({key, name}) =>
       <option value={key} key={key}>{name}</option>
-    <select value={@props.rule.key} onChange={@_onChangeTemplate}>
+
+    <select
+      value={@props.rule.templateKey}
+      onChange={@_onChangeTemplate}>
       {options}
     </select>
 
   _renderComparator: (template) =>
-    if template.valueComparators
-      <select value={@props.rule.valueComparator} onChange={@_onChangeComparator}>
-        { _.map template.valueComparators, (k, v) => <option value={k}>{v}</option> }
-      </select>
-    else
-      false
+    options = _.map template.comparators, ({name}, key) =>
+      <option key={key} value={key}>{name}</option>
+
+    return false unless options.length > 0
+
+    <select
+      value={@props.rule.comparatorKey}
+      onChange={@_onChangeComparator}>
+      {options}
+    </select>
 
   _renderValue: (template) =>
-    if template.valueType is 'enum'
-      <SourceSelect value={@props.rule.value} onChange={@_onChangeValue} options={template.values} />
+    if template.type is Template.Type.Enum
+      <SourceSelect
+        value={@props.rule.value}
+        onChange={@_onChangeValue}
+        options={template.values} />
 
-    else if template.valueType is 'string'
-      <input type="string" value={@props.rule.value} onChange={@_onChangeValue}/>
+    else if template.type is Template.Type.String
+      <input
+        type="string"
+        value={@props.rule.value}
+        onChange={@_onChangeValue} />
 
     else
       false
@@ -110,7 +124,7 @@ class ScenarioEditorRow extends React.Component
 
   _onChangeComparator: (event) =>
     rule = _.clone(@props.rule)
-    rule.valueComparator = event.target.value
+    rule.comparatorKey = event.target.value
     @props.onChange(rule)
 
   _onChangeTemplate: (event) =>

@@ -8,20 +8,20 @@ Tests = [{
     name: "RuleMode Any, contains, equals",
     rules: [
       {
-        key: "from"
-        valueComparator: "contains"
+        templateKey: "from"
+        comparatorKey: "contains"
         value: "@nylas.com"
       },
       {
-        key: "from"
+        templateKey: "from"
+        comparatorKey: "equals"
         value: "oldschool@nilas.com"
-        valueComparator: "equals"
       }
     ],
     ruleMode: "any",
     actions: [
       {
-        key: "applyCategory"
+        templateKey: "applyLabel"
         value: "51a0hb8d6l78mmhy19ffx4txs"
       }
     ],
@@ -29,8 +29,8 @@ Tests = [{
   }),
   good: [
     new Message(from: [new Contact(email:'ben@nylas.com')])
+    new Message(from: [new Contact(email:'ben@nylas.com.jp')])
     new Message(from: [new Contact(email:'oldschool@nilas.com')])
-    new Message(from: [new Contact(email:'ben@other.com')])
   ]
   bad: [
     new Message(from: [new Contact(email:'ben@other.com')])
@@ -43,20 +43,20 @@ Tests = [{
     name: "RuleMode all, ends with, begins with",
     rules: [
       {
-        key: "cc"
-        valueComparator: "endsWith"
+        templateKey: "cc"
+        comparatorKey: "endsWith"
         value: ".com"
       },
       {
-        key: "subject"
+        templateKey: "subject"
+        comparatorKey: "beginsWith"
         value: "[TEST] "
-        valueComparator: "beginsWith"
       }
     ],
     ruleMode: "any",
     actions: [
       {
-        key: "applyCategory"
+        templateKey: "applyLabel"
         value: "51a0hb8d6l78mmhy19ffx4txs"
       }
     ],
@@ -78,44 +78,49 @@ Tests = [{
 },{
   filter: new Filter({
     id: "local-ac7f1671-ba03",
-    name: "All attachment name endsWith, anyRecipient equals",
+    name: "Any attachment name endsWith, anyRecipient equals",
     rules: [
       {
-        key: "anyAttachmentName"
-        valueComparator: "endsWith"
+        templateKey: "anyAttachmentName"
+        comparatorKey: "endsWith"
         value: ".pdf"
       },
       {
-        key: "anyRecipient"
+        templateKey: "anyRecipient"
+        comparatorKey: "equals"
         value: "files@nylas.com"
-        valueComparator: "equals"
       }
     ],
-    ruleMode: "all",
+    ruleMode: "any",
     actions: [
       {
-        key: "applyCategory"
+        templateKey: "applyLabel"
         value: "51a0hb8d6l78mmhy19ffx4txs"
       }
     ],
     accountId: "b5djvgcuhj6i3x8nm53d0vnjm"
   }),
   good: [
-    new Message(files: new File(filename: 'bengotow.pdf'), to: [new Contact(email:'ben@nylas.org')])
+    new Message(files: [new File(filename: 'bengotow.pdf')], to: [new Contact(email:'ben@nylas.org')])
     new Message(to: [new Contact(email:'files@nylas.com')])
-    new Message(to: [new Contact(email:'ben@nylas.com')], cc: [new Contact(email:'ben@test.com'),new Contact(email:'files@nylas.com')])
+    new Message(to: [new Contact(email:'ben@nylas.com')], cc: [new Contact(email:'ben@test.com'), new Contact(email:'files@nylas.com')])
   ],
   bad: [
     new Message(to: [new Contact(email:'ben@nylas.org')])
-    new Message(files: new File(filename: 'bengotow.pdfz'), to: [new Contact(email:'ben@nylas.org')])
-    new Message(files: new File(filename: 'bengotowpdf'), to: [new Contact(email:'ben@nylas.org')])
+    new Message(files: [new File(filename: 'bengotow.pdfz')], to: [new Contact(email:'ben@nylas.org')])
+    new Message(files: [new File(filename: 'bengotowpdf')], to: [new Contact(email:'ben@nylas.org')])
     new Message(to: [new Contact(email:'afiles@nylas.com')])
     new Message(to: [new Contact(email:'files@nylas.coma')])
   ]
 }]
 
-fdescribe "filter execution", ->
-  Tests.forEach ({filter, good, bad}) ->
-    it "should correctly filter messages (#{filter.name})", ->
-      expect(filter.matches(msg)).toBe(true) for msg in good
-      expect(filter.matches(msg)).toBe(false) for msg in bad
+fdescribe "message filtering", ->
+  it "should correctly filter sample messages", ->
+    Tests.forEach ({filter, good, bad}) ->
+      for message, idx in good
+        if filter.matches(message) isnt true
+          expect("#{idx} (#{filter.name})").toBe(true)
+      for message, idx in bad
+        if filter.matches(message) isnt false
+          expect("#{idx} (#{filter.name})").toBe(false)
+

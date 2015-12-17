@@ -1,5 +1,6 @@
 React = require 'react'
 _ = require 'underscore'
+{Comparator, Template} = require './scenario-editor-models'
 ScenarioEditorRow = require './scenario-editor-row'
 {RetinaImg, Flexbox} = require 'nylas-component-kit'
 {Actions, Utils} = require 'nylas-exports'
@@ -14,10 +15,10 @@ For example:
 
   Scenario Space:
    - ScenarioFactory("user-name", "The name of the user")
-      + valueType: string
+      + valueType: String
       + comparators: "contains", "starts with", etc.
     - SecnarioFactor("profession", "The profession of the user"")
-      + valueType: enum
+      + valueType: Enum
       + comparators: 'is'
 
   Scenario Value:
@@ -31,32 +32,6 @@ For example:
       'value': 'Engineer'
     }]
 ###
-class ScenarioTemplate
-
-  constructor: (@key, {@name} = {}) ->
-    @valueType = 'none'
-    @valueComparators = {}
-
-  createDefaultInstance: ->
-    key: @key,
-    value: undefined
-    valueComparator: Object.keys(@valueComparators)[0]
-
-  coerceInstance: (instance) ->
-    instance.key = @key
-    if not @valueComparators
-      delete instance.valueComparator
-    else if not (instance.valueComparator in Object.keys(@valueComparators))
-      instance.valueComparator = Object.keys(@valueComparators)[0]
-    instance
-
-class StringScenarioTemplate extends ScenarioTemplate
-  constructor: (@key, {@name, @valueComparators} = {}) ->
-    @valueType = 'string'
-
-class EnumScenarioTemplate extends ScenarioTemplate
-  constructor: (@key, {@name, @valueLabel, @valueComparators, @values} = {}) ->
-    @valueType = 'enum'
 
 class ScenarioEditor extends React.Component
   @displayName: 'ScenarioEditor'
@@ -67,10 +42,7 @@ class ScenarioEditor extends React.Component
     onChange: React.PropTypes.func
     templates: React.PropTypes.array
 
-  @Template:
-    Base: ScenarioTemplate
-    Enum: EnumScenarioTemplate
-    String: StringScenarioTemplate
+  @Template: Template
 
   constructor: (@props) ->
     @state =
