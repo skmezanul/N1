@@ -73,6 +73,8 @@ module.exports =
     return [] unless account
     return RuleTemplates
 
+  ActionTemplates: ActionTemplates
+
   ActionTemplatesForAccount: (account) ->
     return [] unless account
 

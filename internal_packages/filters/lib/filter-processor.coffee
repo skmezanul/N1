@@ -16,8 +16,49 @@ _ = require 'underscore'
  DatabaseStore,
  TaskQueueStatusStore} = require 'nylas-exports'
 
+class AccountReprocessJob
+  constructor: (@accountId, @processor) ->
+    @_processed = 0
+    @_total = Infinity
+    @_cancelled = false
+
+  start: ->
+    @offset = 0
+    DatabaseStore.count(Message).where({accountId: @accountId}).then (count) =>
+      return if @_cancelled
+      @_total = count
+      @_fetchNextPage()
+
+  cancel: ->
+    @_cancelled = true
+
+  _fetchNextPage: =>
+    return if @_cancelled
+
+    # Fetching threads first, and then getting their messages allows us to use
+    # The same indexes as the thread list / message list in the app
+    query = DatabaseStore
+      .findAll(Thread, {accountId: @accountId})
+      .order(Thread.attributes.lastMessageReceivedTimestamp.descending())
+      .offset(@offset)
+      .limit(50)
+
+    query.then (threads) =>
+      return if @_cancelled
+      DatabaseStore.findAll(Message, threadId: _.pluck(threads, 'id')).then (messages) =>
+        return if @_cancelled
+
+        @processor.processMessages(messages).finally =>
+          @_processed += messages.length
+          console.log("AccountReprocessJob #{@_processed} / #{@_total}")
+          @offset += threads.length
+          if threads.length > 0
+            setTimeout(@_fetchNextPage, 500)
+
+
 class FilterProcessor
   constructor: ->
+    @_jobs = {}
     @_history = []
 
   history: =>
@@ -28,7 +69,7 @@ class FilterProcessor
     @_history.length = 200 if @_history.length > 200
 
   processMessages: (messages) =>
-    return unless messages.length > 0
+    return Promise.resolve() unless messages.length > 0
 
     # When messages arrive, we process all the messages in parallel, but one
     # filter at a time. This is important, because users can order filters which
@@ -43,6 +84,14 @@ class FilterProcessor
         # `incoming.thread`, because filters may be modifying it as they run!
         DatabaseStore.find(Thread, message.threadId).then (thread) =>
           @_applyFilterToMessage(filter, message, thread)
+
+  processAllMessages: (accountId) =>
+    if @_jobs[accountId]
+      @_jobs[accountId].cancel()
+
+    @_jobs[accountId] = new AccountReprocessJob(accountId, @)
+    @_jobs[accountId].start()
+
 
   _checkFilterForMessage: (filter, message) =>
     if filter.ruleMode is RuleMode.All

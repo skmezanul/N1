@@ -43,7 +43,7 @@ class FilterList extends React.Component
     <div className="container-filters">
       <section>
         <h2>
-          <button className="btn" style={float:'right'} onClick={@_onCreateFilter}>
+          <button className="btn" style={float:'right'} onClick={@_onReprocessFilters}>
             Run on existing mail
           </button>
           Mail Rules
@@ -96,6 +96,9 @@ class FilterList extends React.Component
       <div className="filter-detail">
         <div className="no-selection">Create a filter or select one to get started</div>
       </div>
+
+  _onReprocessFilters: =>
+    Actions.reprocessFiltersForAccountId(@state.account.id)
 
   _onAddFilter: =>
     Actions.addFilter({accountId: @state.account.id})

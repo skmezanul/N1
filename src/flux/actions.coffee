@@ -511,6 +511,7 @@ class Actions
   @addFilter: ActionScopeWindow
   @updateFilter: ActionScopeWindow
   @deleteFilter: ActionScopeWindow
+  @reprocessFiltersForAccountId: ActionScopeGlobal
 
 # Read the actions we declared on the dummy Actions object above
 # and translate them into Reflux Actions
