@@ -41,6 +41,7 @@ class QuerySubscriptionPool
       for callback in subscription._callbacks
         console.log("#{callback._registrationPoint}")
       console.groupEnd()
+    return
 
   _formatRegistrationPoint: (stack) ->
     stack = stack.split('\n')
@@ -59,7 +60,7 @@ class QuerySubscriptionPool
     DatabaseStore.listen @_onChange
 
   _onChange: (record) =>
-    for key, subscription in @_subscriptions
+    for key, subscription of @_subscriptions
       subscription.applyChangeRecord(record)
 
 module.exports = new QuerySubscriptionPool()

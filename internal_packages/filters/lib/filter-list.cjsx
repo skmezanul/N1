@@ -1,6 +1,6 @@
 React = require 'react'
 _ = require 'underscore'
-Filter = require './filter'
+{ActionTemplatesForAccount, RuleTemplatesForAccount} = require './filter-templates'
 FiltersStore = require './filters-store'
 ScenarioEditor = require './scenario-editor'
 {Actions, AccountStore} = require 'nylas-exports'
@@ -34,8 +34,8 @@ class FilterList extends React.Component
     account = AccountStore.itemWithId(accountId)
     return {
       filters: FiltersStore.filtersForAccountId(accountId)
-      actionTemplates: Filter.ActionTemplatesForAccount(account)
-      ruleTemplates: Filter.RuleTemplatesForAccount(account)
+      actionTemplates: ActionTemplatesForAccount(account)
+      ruleTemplates: RuleTemplatesForAccount(account)
       account: account
     }
 

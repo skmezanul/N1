@@ -1,21 +1,8 @@
 _ = require 'underscore'
-{Utils,
- CategoryStore,
- Actions,
- ChangeUnreadTask,
- ChangeFolderTask,
- ChangeStarredTask,
- ChangeLabelsTask,
-
- TaskQueueStatusStore} = require 'nylas-exports'
 NylasObservables = require 'nylas-observables'
 
 ScenarioEditor = require './scenario-editor'
 {Template} = ScenarioEditor
-
-RuleMode =
-  Any: 'any'
-  All: 'all'
 
 RuleTemplates = [
   new Template('from', Template.Type.String, {
@@ -69,19 +56,24 @@ RuleTemplates = [
 ]
 
 ActionTemplates = [
-  new Template('markAsRead', Template.Type.None, {name: 'Mark as read'})
-  new Template('star', Template.Type.None, {name: 'Star message'})
+  new Template('markAsRead', Template.Type.None, {name: 'Mark as Read'})
+  new Template('moveToTrash', Template.Type.None, {name: 'Move to Trash'})
+  new Template('star', Template.Type.None, {name: 'Star'})
 ]
 
 
-class Filter
-  @RuleMode: RuleMode
+module.exports =
+  RuleMode:
+    Any: 'any'
+    All: 'all'
 
-  @RuleTemplatesForAccount: (account) ->
+  RuleTemplates: RuleTemplates
+
+  RuleTemplatesForAccount: (account) ->
     return [] unless account
     return RuleTemplates
 
-  @ActionTemplatesForAccount: (account) ->
+  ActionTemplatesForAccount: (account) ->
     return [] unless account
 
     templates = [].concat(ActionTemplates)
@@ -95,7 +87,10 @@ class Filter
           value: cat.id
 
     if account.usesLabels()
-      templates.push new Template('applyLabel', Template.Type.Enum, {
+      templates.unshift new Template('markAsImportant', Template.Type.None, {
+        name: 'Mark as Important'
+      })
+      templates.unshift new Template('applyLabel', Template.Type.Enum, {
         name: 'Apply Label'
         values: CategoryNamesObservable
       })
@@ -108,53 +103,3 @@ class Filter
       })
 
     templates
-
-  constructor: (properties) ->
-    defaults =
-      id: Utils.generateTempId()
-      accountId: undefined
-      name: "Untitled Filter"
-      ruleMode: RuleMode.All
-      rules: [RuleTemplates[0].createDefaultInstance()]
-      actions: [ActionTemplates[0].createDefaultInstance()]
-
-    _.extend(@, defaults, properties)
-
-    unless @accountId
-      throw new Error("Filter::constructor you must provide an account id.")
-
-    @
-
-  matches: (message) ->
-    if @ruleMode is RuleMode.All
-      fn = _.every
-    else
-      fn = _.any
-
-    fn @rules, (rule) =>
-      template = _.findWhere(RuleTemplates, {key: rule.templateKey})
-      value = template.valueForMessage(message)
-      template.evaluate(rule, value)
-
-  applyTo: (message, thread) ->
-    tasks = []
-
-    functions =
-      markAsRead: (message, thread, value) ->
-        new ChangeUnreadTask(unread: false, threads: [thread])
-      star: (message, thread, value) ->
-        new ChangeStarredTask(starred: true, threads: [thread])
-      applyLabel: (message, thread, value) ->
-        new ChangeLabelsTask(labelsToAdd: [value], threads: [thread])
-      changeFolder: (message, thread, value) ->
-        new ChangeFolderTask(folder: value, threads: [thread])
-
-    @actions.forEach (action) ->
-      task = functions[action.templateKey](message, thread, action)
-      tasks.push(task) if task
-
-    promises = tasks.map(TaskQueueStatusStore.waitForPerformLocal)
-    tasks.forEach(Actions.queueTask)
-    Promise.all(promises)
-
-module.exports = Filter

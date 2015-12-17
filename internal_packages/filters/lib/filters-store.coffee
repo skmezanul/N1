@@ -1,20 +1,31 @@
 NylasStore = require 'nylas-store'
 _ = require 'underscore'
 _s = require 'underscore.string'
-{Actions} = require 'nylas-exports'
-Filter = require './filter'
+Rx = require 'rx-lite'
+{Actions, DatabaseStore} = require 'nylas-exports'
+
+FilterProcessor = require './filter-processor'
+
+JSONBlobKey = "MailFiltersV1"
 
 class FiltersStore extends NylasStore
 
   constructor: ->
-    @_filters = @_loadFilters()
-
     @_saveFiltersDebounced = _.debounce(@_saveFilters, 100)
+
+    query = DatabaseStore.findJSONBlob(JSONBlobKey)
+    @_subscription = Rx.Observable.fromQuery(query).subscribe (filters) =>
+      @_filters = filters ? []
+      @trigger()
 
     @listenTo Actions.addFilter, @_onAddFilter
     @listenTo Actions.deleteFilter, @_onDeleteFilter
     @listenTo Actions.updateFilter, @_onUpdateFilter
-    @listenTo Actions.didPassivelyReceiveNewModels, @_onNewModels
+
+    if NylasEnv.isWorkWindow()
+      @_processor = new FilterProcessor()
+      @listenTo Actions.didPassivelyReceiveNewModels, (incoming) =>
+        @_processor.processMessages(incoming['message'] ? [])
 
   filters: =>
     @_filters
@@ -28,7 +39,17 @@ class FiltersStore extends NylasStore
     @trigger()
 
   _onAddFilter: (properties) =>
-    @_filters.push(new Filter(properties))
+    defaults =
+      id: Utils.generateTempId()
+      name: "Untitled Filter"
+      ruleMode: RuleMode.All
+      rules: [RuleTemplates[0].createDefaultInstance()]
+      actions: [ActionTemplates[0].createDefaultInstance()]
+
+    unless properties.accountId
+      throw new Error("Filter::constructor you must provide an account id.")
+
+    @_filters.push(_.extend(defaults, properties))
     @_saveFiltersDebounced()
     @trigger()
 
@@ -38,27 +59,8 @@ class FiltersStore extends NylasStore
     @_saveFiltersDebounced()
     @trigger()
 
-  _onNewModels: (incoming) =>
-    incomingMessages = incoming.message
-    return unless incomingMessages.length > 0
-
-    # When messages arrive, we process all the messages in parallel, but one
-    # filter at a time. This is important, because users can order filters which
-    # may do and undo a change. Ie: "Star if from Ben, Unstar if subject is "Bla"
-
-    Promise.each @_filters, (filter) ->
-      matchingMessages = incomingMessages.filter(filter.matches)
-      Promise.map matchingMessages, (message) ->
-        # We always pull the thread from the database, even though it may be in
-        # `incoming.thread`, because filters may be modifying it as they run!
-        DatabaseStore.find(Thread, message.threadId).then (thread) ->
-          return filter.applyTo(message, thread)
-
-  _loadFilters: =>
-    atom.config.get('filters') ? []
-
   _saveFilters: =>
-    atom.config.set('filters', @_filters)
+    DatabaseStore.persistJSONBlob(JSONBlobKey, @_filters)
 
 
 module.exports = new FiltersStore()

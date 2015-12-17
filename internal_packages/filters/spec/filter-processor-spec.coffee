@@ -1,13 +1,14 @@
 _ = require 'underscore'
-Filter = require '../lib/filter'
 {Message,
  Contact,
  File,
  TaskQueueStatusStore,
  Actions} = require 'nylas-exports'
 
+FilterProcessor = require '../lib/filter-processor'
+
 Tests = [{
-  filter: new Filter({
+  filter: {
     id: "local-ac7f1671-ba03",
     name: "RuleMode Any, contains, equals",
     rules: [
@@ -29,7 +30,7 @@ Tests = [{
       }
     ],
     accountId: "b5djvgcuhj6i3x8nm53d0vnjm"
-  }),
+  },
   good: [
     new Message(from: [new Contact(email:'ben@nylas.com')])
     new Message(from: [new Contact(email:'ben@nylas.com.jp')])
@@ -41,7 +42,7 @@ Tests = [{
     new Message(from: [new Contact(email:'twooldschool@nilas.com')])
   ]
 },{
-  filter: new Filter({
+  filter: {
     id: "local-ac7f1671-ba03",
     name: "RuleMode all, ends with, begins with",
     rules: [
@@ -64,7 +65,7 @@ Tests = [{
       }
     ],
     accountId: "b5djvgcuhj6i3x8nm53d0vnjm"
-  }),
+  },
   good: [
     new Message(cc: [new Contact(email:'ben@nylas.org')], subject: '[TEST] ABCD')
     new Message(cc: [new Contact(email:'ben@nylas.org')], subject: '[test] ABCD')
@@ -79,7 +80,7 @@ Tests = [{
     new Message(cc: [new Contact(email:'a.com@hasacom.org')], subject: 'Whatever [test] ')
   ]
 },{
-  filter: new Filter({
+  filter: {
     id: "local-ac7f1671-ba03",
     name: "Any attachment name endsWith, anyRecipient equals",
     rules: [
@@ -102,7 +103,7 @@ Tests = [{
       }
     ],
     accountId: "b5djvgcuhj6i3x8nm53d0vnjm"
-  }),
+  },
   good: [
     new Message(files: [new File(filename: 'bengotow.pdf')], to: [new Contact(email:'ben@nylas.org')])
     new Message(to: [new Contact(email:'files@nylas.com')])
@@ -117,31 +118,41 @@ Tests = [{
   ]
 }]
 
-describe "Filter", ->
-  describe "matches", ->
+describe "FilterProcessor", ->
+  beforeEach ->
+    @processor = new FilterProcessor()
+
+  describe "_checkFilterForMessage", ->
     it "should correctly filter sample messages", ->
-      Tests.forEach ({filter, good, bad}) ->
+      Tests.forEach ({filter, good, bad}) =>
         for message, idx in good
-          if filter.matches(message) isnt true
+          message.accountId = filter.accountId
+          if @processor._checkFilterForMessage(filter, message) isnt true
             expect("#{idx} (#{filter.name})").toBe(true)
         for message, idx in bad
-          if filter.matches(message) isnt false
+          message.accountId = filter.accountId
+          if @processor._checkFilterForMessage(filter, message) isnt false
             expect("#{idx} (#{filter.name})").toBe(false)
 
-  fdescribe "applyTo", ->
+    it "should check the account id", ->
+      {filter, good, bad} = Tests[0]
+      message = good[0]
+      message.accountId = 'not the same!'
+      expect(@processor._checkFilterForMessage(filter, message)).toBe(false)
+
+  describe "_applyFilterToMessage", ->
     it "should queue tasks for messages", ->
       spyOn(TaskQueueStatusStore, 'waitForPerformLocal')
       spyOn(Actions, 'queueTask')
 
-      Tests.forEach ({filter}) ->
+      Tests.forEach ({filter}) =>
         TaskQueueStatusStore.waitForPerformLocal.reset()
         Actions.queueTask.reset()
 
         messageSpy = jasmine.createSpy('message')
         threadSpy = jasmine.createSpy('thread')
-        response = filter.applyTo(messageSpy, threadSpy)
+        response = @processor._applyFilterToMessage(filter, messageSpy, threadSpy)
 
         expect(TaskQueueStatusStore.waitForPerformLocal).toHaveBeenCalled()
         expect(response instanceof Promise).toBe(true)
         expect(Actions.queueTask).toHaveBeenCalled()
-

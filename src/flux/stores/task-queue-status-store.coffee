@@ -35,11 +35,11 @@ class TaskQueueStatusStore extends NylasStore
   queue: ->
     @_queue
 
-  waitForPerformLocal: (task) ->
+  waitForPerformLocal: (task) =>
     new Promise (resolve, reject) =>
       @_waitingLocals.push({taskId: task.id, resolve: resolve})
 
-  waitForPerformRemote: (task) ->
+  waitForPerformRemote: (task) =>
     new Promise (resolve, reject) =>
       @_waitingRemotes.push({taskId: task.id, resolve: resolve})
 
