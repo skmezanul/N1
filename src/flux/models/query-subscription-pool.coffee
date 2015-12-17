@@ -9,26 +9,36 @@ merge equivalent subscriptions, etc.
 ###
 class QuerySubscriptionPool
   constructor: ->
-    @_subscriptions = []
+    @_subscriptions = {}
+    @_setup()
 
   add: (query, options, callback) =>
-    @_setup() if @_subscriptions.length is 0
-
     callback._registrationPoint = @_formatRegistrationPoint((new Error).stack)
 
-    subscription = new QuerySubscription(query, options)
-    subscription.addCallback(callback)
-    @_subscriptions.push(subscription)
+    key = query.sql()
+    subscription = @_subscriptions[key]
+    if not subscription
+      subscription = new QuerySubscription(query, options)
+      @_subscriptions[key] = subscription
 
+    subscription.addCallback(callback)
     return =>
       subscription.removeCallback(callback)
-      @_subscriptions = _.without(@_subscriptions, subscription)
+      # We could be in the middle of an update that will remove and then re-add
+      # the exact same subscription. Keep around the cached set for one tick
+      # to see if that happens.
+      process.nextTick => @checkIfSubscriptionNeeded(subscription)
+
+  checkIfSubscriptionNeeded: (subscription) =>
+    return unless subscription.callbackCount() is 0
+    key = subscription.sql()
+    delete @_subscriptions[key]
 
   printSubscriptions: =>
-    @_subscriptions.forEach (sub) ->
-      console.log(sub._query.sql())
+    for key, subscription of @_subscriptions
+      console.log(key)
       console.group()
-      sub._callbacks.forEach (callback) ->
+      for callback in subscription._callbacks
         console.log("#{callback._registrationPoint}")
       console.groupEnd()
 
@@ -49,7 +59,7 @@ class QuerySubscriptionPool
     DatabaseStore.listen @_onChange
 
   _onChange: (record) =>
-    for subscription in @_subscriptions
+    for key, subscription in @_subscriptions
       subscription.applyChangeRecord(record)
 
 module.exports = new QuerySubscriptionPool()

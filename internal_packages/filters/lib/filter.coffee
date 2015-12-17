@@ -1,147 +1,140 @@
 _ = require 'underscore'
 {Utils, CategoryStore} = require 'nylas-exports'
+ScenarioEditor = require './scenario-editor'
 NylasObservables = require 'nylas-observables'
 
+RuleMode =
+  Any: 'any'
+  All: 'all'
+
+RuleComparator =
+  contains: ({actual, desired}) -> actual.toLowerCase().indexOf(desired.toLowerCase()) isnt -1
+  doesNotContain: ({actual, desired}) -> actual.toLowerCase().indexOf(desired.toLowerCase()) is -1
+  beginsWith: ({actual, desired}) -> actual.toLowerCase().indexOf(desired.toLowerCase()) is 0
+  endsWith: ({actual, desired}) -> actual.toLowerCase().lastIndexOf(desired.toLowerCase()) is actual.length - desired.length
+  equals: ({actual, desired}) -> actual is desired
+
+RuleComparatorNames =
+  'contains': 'contains'
+  'does not contain': 'doesNotContain'
+  'begins with': 'beginsWith'
+  'ends with': 'endsWith'
+  'equals': 'equals'
+
+BaseRuleTemplates = [
+  new ScenarioEditor.Template.String('from', {name: 'From', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('to', {name: 'To', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('cc', {name: 'Cc', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('bcc', {name: 'Bcc', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('anyRecipient', {name: 'Any Recipient', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('anyAttachmentName', {name: 'Any attachment name', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('subject', {name: 'Subject', valueComparators: RuleComparatorNames})
+  new ScenarioEditor.Template.String('body', {name: 'Body', valueComparators: RuleComparatorNames})
+]
+
+BaseActionTemplates = [
+  new ScenarioEditor.Template.Base('markAsRead', {name: 'Mark as read'})
+  new ScenarioEditor.Template.Base('star', {name: 'Star message'})
+]
+
 class Filter
-  @ValueType:
-    Enum: 'enum'
-    String: 'string'
+  @RuleMode: RuleMode
 
-  @Comparators:
-    contains: (actual, desired) -> actual.toLowerCase().indexOf(desired.toLowerCase()) isnt -1
-    doesNotContain: (actual, desired) -> actual.toLowerCase().indexOf(desired.toLowerCase()) is -1
-    beginsWith: (actual, desired) -> actual.toLowerCase().indexOf(desired.toLowerCase()) is 0
-    endsWith: (actual, desired) -> actual.toLowerCase().lastIndexOf(desired.toLowerCase()) is actual.length - desired.length
-    equals: (actual, desired) -> actual is desired
-
-  @RuleTemplatesForAccount: (account) =>
+  @RuleTemplatesForAccount: (account) ->
     return [] unless account
+    return BaseRuleTemplates
 
-    [{
-      name: 'From'
-      key: 'from'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'To'
-      key: 'to'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'Cc'
-      key: 'cc'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'Bcc'
-      key: 'bcc'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'Any Recipient'
-      key: 'anyRecipient'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'Subject'
-      key: 'subject'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'Any attachment name'
-      key: 'anyAttachmentName'
-      valueType: Filter.ValueType.String
-    },{
-      name: 'body'
-      key: 'body'
-      valueType: Filter.ValueType.String
-    }]
-
-  @ActionTemplatesForAccount: (account) =>
+  @ActionTemplatesForAccount: (account) ->
     return [] unless account
-
-    actions = [{
-      name: 'Mark as read'
-      key: 'markAsRead'
-      valueType: 'none'
-    },{
-      name: 'Star message'
-      key: 'star'
-      valueType: 'none'
-    }]
+    actions = [].concat(BaseActionTemplates)
 
     if account.usesLabels()
-      actions.push
+      actions.push new ScenarioEditor.Template.Enum('applyCategory', {
         name: 'Apply Label'
-        key: 'applyCategory'
-        comparatorLabel: ':'
-        valueType: Filter.ValueType.Enum
-        values: NylasObservables.Categories.forAccount(account).map (cat) ->
+        values: NylasObservables.Categories.forAccount(account).sort().map (cats) ->
+          cats.map (cat) ->
             name: cat.displayName || cat.name
             value: cat.id
+        })
+
     else
-      actions.push
+      actions.push new ScenarioEditor.Template.Enum('applyCategory', {
         name: 'Move Message'
-        key: 'applyCategory'
-        comparatorLabel: 'to mailbox:'
-        valueType: Filter.ValueType.Enum
-        values: NylasObservables.Categories.forAccount(account).map (cat) ->
+        valueLabel: 'to mailbox:'
+        values: NylasObservables.Categories.forAccount(account).sort().map (cats) ->
+          cats.map (cat) ->
             name: cat.displayName || cat.name
             value: cat.id
+        })
 
     actions
 
-  constructor: ->
-    @id = Utils.generateTempId()
-    @name = "Untitled Filter"
-    @rules = [{key: 'to', comparator: 'contains', value: '', type: Filter.ValueType.String}]
-    @actions = [{key: 'applyCategory', value: null}]
+  constructor: (properties) ->
+    defaults =
+      id: Utils.generateTempId()
+      name: "Untitled Filter"
+      rules: [BaseRuleTemplates[0].createDefaultInstance()]
+      ruleMode: RuleMode.All
+      actions: [BaseActionTemplates[0].createDefaultInstance()]
 
-  matches: (message, thread) ->
-    _.every @rules, (rule) ->
-      if rule.key is 'anyRecipient'
-        value = [].concat(message.to, message.cc, message.bcc, message.from)
-      if rule.key is 'anyAttachmentName'
-        value = message.files.map (f) -> f.name
-      else
-        value = message[rule.key]
+    _.extend(@, defaults, properties)
 
-      matchFunction = (actual, desired) -> actual is desired
-      if rule.comparator
-        matchFunction = @Comparators[rule.comparator]
+    unless @accountId
+      throw new Error("Filter::constructor you must provide an account id.")
 
-      if value instanceof Array
-        for subvalue in value
-          return true if matchFunction(subvalue, rule.value)
-      else
-        return true if matchFunction(subvalue, rule.value)
+    @
 
-      false
+  matches: (message) ->
+    if @ruleMode is RuleMode.All
+      fn = _.every
+    else
+      fn = _.any
+
+    fn @rules, (rule) => @_matchesRule(message, rule)
+
+  _matchesRule: (message, rule) ->
+    if rule.key is 'anyRecipient'
+      value = [].concat(message.to, message.cc, message.bcc, message.from)
+    else if rule.key is 'anyAttachmentName'
+      value = message.files.map (f) -> f.filename
+    else
+      value = message[rule.key]
+
+    if rule.key in ['to', 'cc', 'bcc', 'from', 'anyRecipient']
+      value = value.map (c) -> c.email
+
+    if rule.valueComparator
+      matchFunction = RuleComparator[rule.valueComparator]
+      if not matchFunction
+        throw new Error("Filter::matches - unknown comparator: #{rule.valueComparator}")
+    else
+      matchFunction = RuleComparator['equals']
+
+    if value instanceof Array
+      return _.any value, (subvalue) -> matchFunction(actual: subvalue, desired: rule.value)
+    else
+      return matchFunction(actual: value, desired: rule.value)
 
   applyTo: (message, thread) ->
-    return unless @matches(message, thread)
-
+    tasks = []
     @_actions.forEach (action) ->
       if action.type is "applyCategory"
-        folder = _.find CategoryStore.getUserCategories(), (c) ->
-          c.id is val
-        task = new ChangeFolderTask
-          folder: folder
+        tasks.push new ChangeFolderTask
+          folder: action.value
           threads: [thread]
-        Actions.queueTask(task)
 
-      else if action.type is "markAsRead" and val is true
-        task = new ChangeUnreadTask
+      else if action.type is "markAsRead"
+        tasks.push new ChangeUnreadTask
           unread: false
           threads: [thread]
-        Actions.queueTask(task)
 
-      else if action.type is "archive" and val is true
-        task = TaskFactory.taskForArchiving({threads: [thread]})
-        Actions.queueTask(task)
-
-      else if action.type is "star" and val is true
-        task = new ChangeStarredTask
+      else if action.type is "star"
+        tasks.push new ChangeStarredTask
           starred: true
           threads: [thread]
-        Actions.queueTask(task)
 
-      else if action.type is "delete" and val is true
-        task = TaskFactory.taskForMovingToTrash({threads: [thread]})
-        Actions.queueTask(task)
+    promises = tasks.map(TaskQueueStatusStore.waitForPerformLocal)
+    tasks.forEach(Actions.queueTask)
+    Promise.all(promises)
 
 module.exports = Filter

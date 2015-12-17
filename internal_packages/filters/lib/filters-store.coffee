@@ -4,62 +4,61 @@ _s = require 'underscore.string'
 {Actions} = require 'nylas-exports'
 Filter = require './filter'
 
-# The FiltersStore performs all business logic for filters: the single source
-# of truth for any other code using filters, the gateway to persisting data
-# for filters, the subscriber to Actions which affect filters, and the
-# publisher for all React components which render filters.
 class FiltersStore extends NylasStore
 
-  # The store's instantiation is the best time during the store life cycle
-  # to both set the store's initial state and also subscribe to Actions which
-  # will be published elsewhere.
   constructor: ->
-
-    # ...here, we're setting initial state...
     @_filters = @_loadFilters()
 
-    # ...and here, we're subscribing to Actions which could be fired by React
-    # components, other stores, or any other part of the application.
+    @_saveFiltersDebounced = _.debounce(@_saveFilters, 100)
+
+    @listenTo Actions.addFilter, @_onAddFilter
     @listenTo Actions.deleteFilter, @_onDeleteFilter
-    @listenTo Actions.createFilter, @_onCreateFilter
     @listenTo Actions.updateFilter, @_onUpdateFilter
     @listenTo Actions.didPassivelyReceiveNewModels, @_onNewModels
 
-  # This method is the application's single source of truth for filters.
-  # All FiltersStore consumers will invoke it to get the canonical filters at
-  # the present moment.
   filters: =>
     @_filters
 
-  # The callback for Action.deleteFilter. This action's publishers will pass to
-  # the callback a filter id for the filter to be deleted.
+  filtersForAccountId: (accountId) =>
+    @_filters.filter (f) => f.accountId is accountId
+
   _onDeleteFilter: (id) =>
     @_filters = @_filters.filter (f) -> f.id isnt id
-    @_saveFilters()
+    @_saveFiltersDebounced()
     @trigger()
 
-  _onCreateFilter: =>
-    @_filters.push(new Filter())
-    @_saveFilters()
+  _onAddFilter: (properties) =>
+    @_filters.push(new Filter(properties))
+    @_saveFiltersDebounced()
     @trigger()
 
   _onUpdateFilter: (id, properties) =>
-    filter = _.find @_filters, (f) -> id is f.id
-    filter[key] = val for key, val of properties
-    @_saveFilters()
+    existing = _.find @_filters, (f) -> id is f.id
+    existing[key] = val for key, val of properties
+    @_saveFiltersDebounced()
     @trigger()
 
-  # The callback for Action.didPassivelyReceiveNewModels, a global action which
-  # is published every time the application receives new data from the server.
   _onNewModels: (incoming) =>
+    incomingMessages = incoming.message
+    return unless incomingMessages.length > 0
 
-  # The filters are stored in the config.cson file.
+    # When messages arrive, we process all the messages in parallel, but one
+    # filter at a time. This is important, because users can order filters which
+    # may do and undo a change. Ie: "Star if from Ben, Unstar if subject is "Bla"
+
+    Promise.each @_filters, (filter) ->
+      matchingMessages = incomingMessages.filter(filter.matches)
+      Promise.map matchingMessages, (message) ->
+        # We always pull the thread from the database, even though it may be in
+        # `incoming.thread`, because filters may be modifying it as they run!
+        DatabaseStore.find(Thread, message.threadId).then (thread) ->
+          filter.applyTo(message, thread)
+
   _loadFilters: =>
     atom.config.get('filters') ? []
 
-  # Rewrite the filters to the config.cson file.
   _saveFilters: =>
     atom.config.set('filters', @_filters)
 
-# A best practice is to export an instance of the FiltersStore, NOT the class!
+
 module.exports = new FiltersStore()

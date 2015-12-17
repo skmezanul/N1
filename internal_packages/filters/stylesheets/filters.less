@@ -1,8 +1,9 @@
 @import "ui-variables";
 
 .container-filters {
-  .filter-list {
+  .filter-list .items-wrapper {
       min-width:200px;
+      height: 525px;
   }
   .filter-detail {
     flex: 1;
@@ -13,6 +14,52 @@
     background-color: @background-secondary;
     border-top:1px dashed @border-color-divider;
     padding-top: @padding-base-vertical;
+
+    .no-selection {
+      color: @text-color-very-subtle;
+      text-align: center;
+      padding:150px;
+    }
+    .well {
+      background-color: @background-primary;
+      border: 1px solid @border-color-divider;
+      margin: @padding-base-vertical 0;
+
+      .well-row {
+        padding: @padding-base-vertical @padding-base-horizontal;
+        border-bottom: 1px solid @border-color-divider;
+        select, input {
+          margin:@padding-base-vertical / 4 @padding-base-horizontal / 2;
+          &:first-child {
+            margin-left: 0;
+          }
+          &:last-child {
+            margin-right: 0;
+          }
+        }
+        select {
+          max-width:170px;
+        }
+        input {
+          width:200px;
+        }
+        .actions {
+          white-space: nowrap;
+          vertical-align: middle;
+          .btn {
+            padding:4px;
+            border-radius: 100%;
+            text-align: center;
+            margin-left:10px;
+            margin-top:1px;
+            width:24px;
+          }
+        }
+      }
+      .well-row:last-child {
+        border-bottom: none;
+      }
+    }
   }
   .footer {
     border-top:1px solid @border-color-divider;
@@ -20,33 +67,6 @@
     padding: @padding-base-vertical*3 @padding-base-horizontal;
     .btn {
       margin-right: @padding-base-horizontal;
-    }
-  }
-  .well {
-    background-color: @background-primary;
-    border: 1px solid @border-color-divider;
-    margin: @padding-base-vertical 0;
-
-    .well-row {
-      padding: @padding-base-vertical @padding-base-horizontal;
-      border-bottom: 1px solid @border-color-divider;
-      select, input {
-        margin-right:@padding-base-horizontal / 2;
-        margin-right:@padding-base-horizontal / 2;
-      }
-      .actions {
-        .btn {
-          padding:4px;
-          border-radius: 100%;
-          text-align: center;
-          margin-left:5px;
-          margin-right:5px;
-          width:24px;
-        }
-      }
-    }
-    .well-row:last-child {
-      border-bottom: none;
     }
   }
 }

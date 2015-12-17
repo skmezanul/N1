@@ -2,7 +2,7 @@ React = require 'react'
 _ = require 'underscore'
 Filter = require './filter'
 FiltersStore = require './filters-store'
-RuleEditor = require './rule-editor'
+ScenarioEditor = require './scenario-editor'
 {Actions, AccountStore} = require 'nylas-exports'
 {Flexbox, EditableList} = require 'nylas-component-kit'
 
@@ -15,18 +15,29 @@ class FilterList extends React.Component
     accountId: React.PropTypes.string.isRequired
 
   constructor: (@props) ->
-    @state = _.extend @_getStateFromStores(),
-      selectedFilter: null
+    @state = @stateForAccount(@props.accountId)
 
   componentDidMount: =>
     @_unsubscribers = []
-    @_unsubscribers.push FiltersStore.listen @_onFiltersChange
+    @_unsubscribers.push FiltersStore.listen @_onFiltersChanged
 
   componentWillUnmount: =>
     unsubscribe() for unsubscribe in @_unsubscribers
 
   componentWillReceiveProps: (newProps) =>
-    @setState(@_getStateFromStores(newProps))
+    newState = @stateForAccount(newProps.accountId)
+    newState.selectedFilter = _.find newState.filters, (f) =>
+      f.id is @state.selectedFilter?.id
+    @setState(newState)
+
+  stateForAccount: (accountId) =>
+    account = AccountStore.itemWithId(accountId)
+    return {
+      filters: FiltersStore.filtersForAccountId(accountId)
+      actionTemplates: Filter.ActionTemplatesForAccount(account)
+      ruleTemplates: Filter.RuleTemplatesForAccount(account)
+      account: account
+    }
 
   render: =>
     <div className="container-filters">
@@ -48,16 +59,14 @@ class FilterList extends React.Component
 
   _renderList: =>
     <EditableList
-       className="filter-list"
-      onCreateItem={@_onCreateFilter}
+      className="filter-list"
+      items={@state.filters}
+      itemContent={ (filter) -> filter.name }
+      onCreateItem={@_onAddFilter}
       onDeleteItem={@_onDeleteFilter}
       onItemEdited={@_onFilterNameEdited}
-      initialState={selected: @state.selectedFilter}
-      onItemSelected={@_onSelectFilter}>
-      { @state.filters.map (filter) =>
-          filter.name
-      }
-    </EditableList>
+      selected={@state.selectedFilter}
+      onSelectItem={@_onSelectFilter} />
 
   _renderDetail: =>
     filter = @state.selectedFilter
@@ -70,24 +79,26 @@ class FilterList extends React.Component
           <option value='all'>All</option>
         </select>
         <span> of the following conditions are met:</span>
-        <RuleEditor
+        <ScenarioEditor
           rules={filter.rules}
-          templates={Filter.RuleTemplatesForAccount(@state.account)}
+          templates={@state.ruleTemplates}
           onChange={ (rules) => Actions.updateFilter(filter.id, {rules}) }
           className="well well-matchers"/>
         <span>Perform the following actions:</span>
-        <RuleEditor
+        <ScenarioEditor
           rules={filter.actions}
-          templates={Filter.ActionTemplatesForAccount(@state.account)}
+          templates={@state.actionTemplates}
           onChange={ (actions) => Actions.updateFilter(filter.id, {actions}) }
           className="well well-actions"/>
       </div>
 
     else
-      <div>Create a filter or select one to get started</div>
+      <div className="filter-detail">
+        <div className="no-selection">Create a filter or select one to get started</div>
+      </div>
 
-  _onCreateFilter: (filter) =>
-    Actions.createFilter()
+  _onAddFilter: =>
+    Actions.addFilter({accountId: @state.account.id})
 
   _onSelectFilter: (name, idx) =>
     @setState(selectedFilter: @state.filters[idx])
@@ -101,11 +112,8 @@ class FilterList extends React.Component
   _onFilterRuleModeEdited: (event) =>
     Actions.updateFilter(@state.selectedFilter.id, {ruleMode: event.target.value})
 
-  _getStateFromStores: (props = @props) =>
-    filters: FiltersStore.filters()
-    account: _.find AccountStore.items(), (a) -> a.id is props.accountId
+  _onFiltersChanged: =>
+    @setState(filters: FiltersStore.filtersForAccountId(@props.accountId))
 
-  _onFiltersChange: =>
-    @setState @_getStateFromStores()
 
 module.exports = FilterList

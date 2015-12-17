@@ -15,14 +15,14 @@ const makeList = (items = [], props = {})=> {
 
 describe('EditableList', ()=> {
   describe('_onItemClick', ()=> {
-    it('calls onItemSelected', ()=> {
-      const onItemSelected = jasmine.createSpy('onItemSelected');
-      const list = makeList(['1', '2'], {onItemSelected});
+    it('calls onSelectItem', ()=> {
+      const onSelectItem = jasmine.createSpy('onSelectItem');
+      const list = makeList(['1', '2'], {onSelectItem});
       const item = scryRenderedDOMComponentsWithClass(list, 'editable-item')[0];
 
       Simulate.click(item);
 
-      expect(onItemSelected).toHaveBeenCalledWith('1', 0);
+      expect(onSelectItem).toHaveBeenCalledWith('1', 0);
     });
   });
 
@@ -92,54 +92,54 @@ describe('EditableList', ()=> {
   });
 
   describe('_onListKeyDown', ()=> {
-    it('calls onItemSelected', ()=> {
-      const onItemSelected = jasmine.createSpy('onItemSelected');
-      const list = makeList(['1', '2'], {initialState: {selected: 0}, onItemSelected});
+    it('calls onSelectItem', ()=> {
+      const onSelectItem = jasmine.createSpy('onSelectItem');
+      const list = makeList(['1', '2'], {initialState: {selected: 0}, onSelectItem});
       const innerList = findRenderedDOMComponentWithClass(list, 'items-wrapper');
 
       Simulate.keyDown(innerList, {key: 'ArrowDown'});
 
-      expect(onItemSelected).toHaveBeenCalledWith('2', 1);
+      expect(onSelectItem).toHaveBeenCalledWith('2', 1);
     });
 
     it('does not select an item when at the bottom of the list and moves down', ()=> {
-      const onItemSelected = jasmine.createSpy('onItemSelected');
-      const list = makeList(['1', '2'], {initialState: {selected: 1}, onItemSelected});
+      const onSelectItem = jasmine.createSpy('onSelectItem');
+      const list = makeList(['1', '2'], {initialState: {selected: 1}, onSelectItem});
       const innerList = findRenderedDOMComponentWithClass(list, 'items-wrapper');
 
       Simulate.keyDown(innerList, {key: 'ArrowDown'});
 
-      expect(onItemSelected).not.toHaveBeenCalled();
+      expect(onSelectItem).not.toHaveBeenCalled();
     });
 
     it('does not select an item when at the top of the list and moves up', ()=> {
-      const onItemSelected = jasmine.createSpy('onItemSelected');
-      const list = makeList(['1', '2'], {initialState: {selected: 0}, onItemSelected});
+      const onSelectItem = jasmine.createSpy('onSelectItem');
+      const list = makeList(['1', '2'], {initialState: {selected: 0}, onSelectItem});
       const innerList = findRenderedDOMComponentWithClass(list, 'items-wrapper');
 
       Simulate.keyDown(innerList, {key: 'ArrowUp'});
 
-      expect(onItemSelected).not.toHaveBeenCalled();
+      expect(onSelectItem).not.toHaveBeenCalled();
     });
 
     it('clears selection when esc pressed', ()=> {
-      const onItemSelected = jasmine.createSpy('onItemSelected');
-      const list = makeList(['1', '2'], {initialState: {selected: 0}, onItemSelected});
+      const onSelectItem = jasmine.createSpy('onSelectItem');
+      const list = makeList(['1', '2'], {initialState: {selected: 0}, onSelectItem});
       const innerList = findRenderedDOMComponentWithClass(list, 'items-wrapper');
 
       Simulate.keyDown(innerList, {key: 'Escape'});
 
-      expect(onItemSelected).toHaveBeenCalledWith(undefined, null);
+      expect(onSelectItem).toHaveBeenCalledWith(undefined, null);
     });
 
     it('does not clear the selection when esc pressed but prop does not allow it', ()=> {
-      const onItemSelected = jasmine.createSpy('onItemSelected');
-      const list = makeList(['1', '2'], {initialState: {selected: 0}, allowEmptySelection: false, onItemSelected});
+      const onSelectItem = jasmine.createSpy('onSelectItem');
+      const list = makeList(['1', '2'], {initialState: {selected: 0}, allowEmptySelection: false, onSelectItem});
       const innerList = findRenderedDOMComponentWithClass(list, 'items-wrapper');
 
       Simulate.keyDown(innerList, {key: 'Escape'});
 
-      expect(onItemSelected).not.toHaveBeenCalled();
+      expect(onSelectItem).not.toHaveBeenCalled();
     });
   });
 

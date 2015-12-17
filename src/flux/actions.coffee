@@ -508,7 +508,7 @@ class Actions
   ###
   @recordUserEvent: ActionScopeWindow
 
-  @createFilter: ActionScopeWindow
+  @addFilter: ActionScopeWindow
   @updateFilter: ActionScopeWindow
   @deleteFilter: ActionScopeWindow
 
