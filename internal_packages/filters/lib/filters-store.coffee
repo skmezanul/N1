@@ -52,7 +52,7 @@ class FiltersStore extends NylasStore
         # We always pull the thread from the database, even though it may be in
         # `incoming.thread`, because filters may be modifying it as they run!
         DatabaseStore.find(Thread, message.threadId).then (thread) ->
-          filter.applyTo(message, thread)
+          return filter.applyTo(message, thread)
 
   _loadFilters: =>
     atom.config.get('filters') ? []

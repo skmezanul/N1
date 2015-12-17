@@ -2,6 +2,11 @@ _ = require 'underscore'
 {Utils,
  CategoryStore,
  Actions,
+ ChangeUnreadTask,
+ ChangeFolderTask,
+ ChangeStarredTask,
+ ChangeLabelsTask,
+
  TaskQueueStatusStore} = require 'nylas-exports'
 NylasObservables = require 'nylas-observables'
 
@@ -136,7 +141,7 @@ class Filter
 
     functions =
       markAsRead: (message, thread, value) ->
-        new ChangeFolderTask(folder: action.value, threads: [thread])
+        new ChangeUnreadTask(unread: false, threads: [thread])
       star: (message, thread, value) ->
         new ChangeStarredTask(starred: true, threads: [thread])
       applyLabel: (message, thread, value) ->
@@ -144,7 +149,7 @@ class Filter
       changeFolder: (message, thread, value) ->
         new ChangeFolderTask(folder: value, threads: [thread])
 
-    @_actions.forEach (action) ->
+    @actions.forEach (action) ->
       task = functions[action.templateKey](message, thread, action)
       tasks.push(task) if task
 

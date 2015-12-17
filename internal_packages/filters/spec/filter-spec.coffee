@@ -1,6 +1,10 @@
 _ = require 'underscore'
 Filter = require '../lib/filter'
-{Message, Contact, File} = require 'nylas-exports'
+{Message,
+ Contact,
+ File,
+ TaskQueueStatusStore,
+ Actions} = require 'nylas-exports'
 
 Tests = [{
   filter: new Filter({
@@ -21,8 +25,7 @@ Tests = [{
     ruleMode: "any",
     actions: [
       {
-        templateKey: "applyLabel"
-        value: "51a0hb8d6l78mmhy19ffx4txs"
+        templateKey: "markAsRead"
       }
     ],
     accountId: "b5djvgcuhj6i3x8nm53d0vnjm"
@@ -94,7 +97,7 @@ Tests = [{
     ruleMode: "any",
     actions: [
       {
-        templateKey: "applyLabel"
+        templateKey: "changeFolder"
         value: "51a0hb8d6l78mmhy19ffx4txs"
       }
     ],
@@ -114,13 +117,31 @@ Tests = [{
   ]
 }]
 
-fdescribe "message filtering", ->
-  it "should correctly filter sample messages", ->
-    Tests.forEach ({filter, good, bad}) ->
-      for message, idx in good
-        if filter.matches(message) isnt true
-          expect("#{idx} (#{filter.name})").toBe(true)
-      for message, idx in bad
-        if filter.matches(message) isnt false
-          expect("#{idx} (#{filter.name})").toBe(false)
+describe "Filter", ->
+  describe "matches", ->
+    it "should correctly filter sample messages", ->
+      Tests.forEach ({filter, good, bad}) ->
+        for message, idx in good
+          if filter.matches(message) isnt true
+            expect("#{idx} (#{filter.name})").toBe(true)
+        for message, idx in bad
+          if filter.matches(message) isnt false
+            expect("#{idx} (#{filter.name})").toBe(false)
+
+  fdescribe "applyTo", ->
+    it "should queue tasks for messages", ->
+      spyOn(TaskQueueStatusStore, 'waitForPerformLocal')
+      spyOn(Actions, 'queueTask')
+
+      Tests.forEach ({filter}) ->
+        TaskQueueStatusStore.waitForPerformLocal.reset()
+        Actions.queueTask.reset()
+
+        messageSpy = jasmine.createSpy('message')
+        threadSpy = jasmine.createSpy('thread')
+        response = filter.applyTo(messageSpy, threadSpy)
+
+        expect(TaskQueueStatusStore.waitForPerformLocal).toHaveBeenCalled()
+        expect(response instanceof Promise).toBe(true)
+        expect(Actions.queueTask).toHaveBeenCalled()
 
