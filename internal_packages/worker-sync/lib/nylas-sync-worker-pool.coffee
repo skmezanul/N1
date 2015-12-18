@@ -6,14 +6,16 @@ _ = require 'underscore'
  DatabaseStore,
  DatabaseObjectRegistry} = require 'nylas-exports'
 
+MailFilterProcessor = require './mail-filter-processor'
 NylasLongConnection = require './nylas-long-connection'
 NylasSyncWorker = require './nylas-sync-worker'
-
 
 class NylasSyncWorkerPool
 
   constructor: ->
     @_workers = []
+    @_filterProcessor = new MailFilterProcessor()
+
     AccountStore.listen(@_onAccountsChanged, @)
     @_onAccountsChanged()
 
@@ -88,7 +90,8 @@ class NylasSyncWorkerPool
         # that allows other parts of the app to update based on new models
         # (notifications)
         if _.flatten(_.values(created)).length > 0
-          Actions.didPassivelyReceiveNewModels(created)
+          @_filterProcessor.processMessages(created['message'] ? []).finally =>
+            Actions.didPassivelyReceiveNewModels(created)
 
         # Apply all of the deletions
         destroyPromises = destroy.map(@_handleDeltaDeletion)
@@ -125,6 +128,4 @@ class NylasSyncWorkerPool
         return Promise.resolve() unless model
         return t.unpersistModel(model)
 
-pool = new NylasSyncWorkerPool()
-window.NylasSyncWorkerPool = pool
-module.exports = pool
+module.exports = NylasSyncWorkerPool

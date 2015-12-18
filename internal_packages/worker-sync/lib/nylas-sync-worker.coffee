@@ -56,6 +56,7 @@ class NylasSyncWorker
       for model, modelState of @_state
         modelState.busy = false
       @resumeFetches()
+      @resumeRuleProcessing()
 
     @
 
@@ -105,6 +106,10 @@ class NylasSyncWorker
     @fetchCollection('contacts')
     @fetchCollection('calendars')
     @fetchCollection('events')
+
+  resumeRuleProcessing: =>
+    return unless @_state.reprocessingFilters
+
 
   fetchCollection: (model, options = {}) ->
     return unless @_state

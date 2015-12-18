@@ -1,10 +1,17 @@
 React = require 'react'
 _ = require 'underscore'
-{ActionTemplatesForAccount, RuleTemplatesForAccount} = require './filter-templates'
-FiltersStore = require './filters-store'
-ScenarioEditor = require './scenario-editor'
-{Actions, AccountStore} = require 'nylas-exports'
-{Flexbox, EditableList} = require 'nylas-component-kit'
+
+{Actions,
+ AccountStore,
+ MailFiltersStore,
+ MailFiltersTemplates} = require 'nylas-exports'
+
+{Flexbox,
+ EditableList,
+ ScenarioEditor} = require 'nylas-component-kit'
+
+{ActionTemplatesForAccount,
+ RuleTemplatesForAccount} = MailFiltersTemplates
 
 class FilterList extends React.Component
   @displayName: 'FilterList'
@@ -19,7 +26,7 @@ class FilterList extends React.Component
 
   componentDidMount: =>
     @_unsubscribers = []
-    @_unsubscribers.push FiltersStore.listen @_onFiltersChanged
+    @_unsubscribers.push MailFiltersStore.listen @_onFiltersChanged
 
   componentWillUnmount: =>
     unsubscribe() for unsubscribe in @_unsubscribers
@@ -33,7 +40,7 @@ class FilterList extends React.Component
   stateForAccount: (accountId) =>
     account = AccountStore.itemWithId(accountId)
     return {
-      filters: FiltersStore.filtersForAccountId(accountId)
+      filters: MailFiltersStore.filtersForAccountId(accountId)
       actionTemplates: ActionTemplatesForAccount(account)
       ruleTemplates: RuleTemplatesForAccount(account)
       account: account
@@ -116,7 +123,7 @@ class FilterList extends React.Component
     Actions.updateFilter(@state.selectedFilter.id, {ruleMode: event.target.value})
 
   _onFiltersChanged: =>
-    @setState(filters: FiltersStore.filtersForAccountId(@props.accountId))
+    @setState(filters: MailFiltersStore.filtersForAccountId(@props.accountId))
 
 
 module.exports = FilterList

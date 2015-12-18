@@ -43,6 +43,7 @@ class ScenarioEditor extends React.Component
     templates: React.PropTypes.array
 
   @Template: Template
+  @Comparator: Comparator
 
   constructor: (@props) ->
     @state =

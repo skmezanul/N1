@@ -1,14 +1,15 @@
 NylasStore = require 'nylas-store'
 _ = require 'underscore'
-_s = require 'underscore.string'
 Rx = require 'rx-lite'
-{Actions, DatabaseStore, Utils} = require 'nylas-exports'
+DatabaseStore = require './database-store'
+Utils = require '../models/utils'
+Actions = require '../actions'
 
-{RuleMode, RuleTemplates, ActionTemplates} = require './filter-templates'
-FilterProcessor = require './filter-processor'
+{RuleMode, RuleTemplates, ActionTemplates} = require './mail-filters-templates'
+
 FiltersJSONBlobKey = "MailFiltersV1"
 
-class FiltersStore extends NylasStore
+class MailFiltersStore extends NylasStore
   constructor: ->
     query = DatabaseStore.findJSONBlob(FiltersJSONBlobKey)
     @_subscription = Rx.Observable.fromQuery(query).subscribe (filters) =>
@@ -18,13 +19,6 @@ class FiltersStore extends NylasStore
     @listenTo Actions.addFilter, @_onAddFilter
     @listenTo Actions.deleteFilter, @_onDeleteFilter
     @listenTo Actions.updateFilter, @_onUpdateFilter
-
-    if NylasEnv.isWorkWindow()
-      @_processor = new FilterProcessor()
-      @listenTo Actions.reprocessFiltersForAccountId, (accountId) =>
-        @_processor.processAllMessages(accountId)
-      @listenTo Actions.didPassivelyReceiveNewModels, (incoming) =>
-        @_processor.processMessages(incoming['message'] ? [])
 
   filters: =>
     @_filters
@@ -66,4 +60,4 @@ class FiltersStore extends NylasStore
     @_saveFiltersDebounced()
 
 
-module.exports = new FiltersStore()
+module.exports = new MailFiltersStore()

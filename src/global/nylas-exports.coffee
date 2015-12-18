@@ -118,6 +118,8 @@ class NylasExports
   @require "WorkspaceStore", 'flux/stores/workspace-store'
   @require "DraftCountStore", 'flux/stores/draft-count-store'
   @require "FileUploadStore", 'flux/stores/file-upload-store'
+  @require "MailFiltersStore", 'flux/stores/mail-filters-store'
+  @require "MailFiltersTemplates", 'flux/stores/mail-filters-templates'
   @require "ThreadCountsStore", 'flux/stores/thread-counts-store'
   @require "UnreadBadgeStore", 'flux/stores/unread-badge-store'
   @require "FileDownloadStore", 'flux/stores/file-download-store'

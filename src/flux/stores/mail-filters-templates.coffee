@@ -1,8 +1,6 @@
 _ = require 'underscore'
 NylasObservables = require 'nylas-observables'
-
-ScenarioEditor = require './scenario-editor'
-{Template} = ScenarioEditor
+{Template} = require '../../components/scenario-editor-models'
 
 RuleTemplates = [
   new Template('from', Template.Type.String, {
