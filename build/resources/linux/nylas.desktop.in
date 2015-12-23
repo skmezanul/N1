@@ -1,11 +1,11 @@
 [Desktop Entry]
-Name=<%= appName %>
+Name=Nylas N1
 Comment=<%= description %>
-GenericName=<%= appName %>
+GenericName=Nylas N1
 Exec=<%= linuxShareDir %>/<%= appFileName %> %U
 Icon=<%= iconName %>
 Type=Application
 StartupNotify=true
-StartupWMClass=<%= appName %>
+StartupWMClass=Nylas N1
 Categories=GNOME;GTK;Utility;EmailClient;Development;
 MimeType=text/plain;x-scheme-handler/mailto;x-scheme-handler/nylas;
