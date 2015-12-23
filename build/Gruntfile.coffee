@@ -1,6 +1,7 @@
+_ = require 'underscore'
 fs = require 'fs'
-path = require 'path'
 os = require 'os'
+path = require 'path'
 babelOptions = require '../static/babelrc'
 
 # This is the main Gruntfile that manages building N1 distributions.
@@ -40,7 +41,6 @@ babelOptions = require '../static/babelrc'
 # installDir = /usr/local OR $INSTALL_PREFIX
 # binDir     = /usr/local/bin
 # shareDir   = /usr/local/share/nylas
-_ = require 'underscore'
 
 packageJson = require '../package.json'
 
@@ -68,15 +68,10 @@ module.exports = (grunt) ->
   # This allows all subsequent paths to the relative to the root of the repo
   grunt.file.setBase(path.resolve('..'))
 
-  # Commented out because it was causing normal grunt message to dissapear
-  # for some reason.
-  # if not grunt.option('verbose')
-  #   grunt.log.writeln = (args...) -> grunt.log
-  #   grunt.log.write = (args...) -> grunt.log
-
   [major, minor, patch] = packageJson.version.split('.')
   tmpDir = os.tmpdir()
-  appName = if process.platform is 'darwin' then 'Nylas N1.app' else 'Nylas'
+  productName = packageJson.productName
+  appFileName = packageJson.name
   buildDir = grunt.option('build-dir') ? path.join(tmpDir, 'nylas-build')
   buildDir = path.resolve(buildDir)
   installDir = grunt.option('install-dir')
@@ -85,18 +80,22 @@ module.exports = (grunt) ->
   electronDownloadDir = path.join(home, '.nylas', 'electron')
 
   symbolsDir = path.join(buildDir, 'Atom.breakpad.syms')
-  shellAppDir = path.join(buildDir, appName)
   if process.platform is 'win32'
+    shellAppDir = path.join(buildDir, productName)
     contentsDir = shellAppDir
     appDir = path.join(shellAppDir, 'resources', 'app')
-    installDir ?= path.join(process.env.ProgramFiles, appName)
+    installDir ?= path.join(process.env.ProgramFiles, productName)
     killCommand = 'taskkill /F /IM nylas.exe'
   else if process.platform is 'darwin'
+    shellAppDir = path.join(buildDir, productName)
     contentsDir = path.join(shellAppDir, 'Contents')
     appDir = path.join(contentsDir, 'Resources', 'app')
-    installDir ?= path.join('/Applications', appName)
+    installDir ?= path.join('/Applications', productName)
     killCommand = 'pkill -9 Nylas'
   else
+    # We don't use the productName because spaces in paths are annoying on
+    # linux
+    shellAppDir = path.join(buildDir, appFileName)
     contentsDir = shellAppDir
     appDir = path.join(shellAppDir, 'resources', 'app')
     installDir ?= process.env.INSTALL_PREFIX ? '/usr/local'
@@ -104,6 +103,8 @@ module.exports = (grunt) ->
 
   grunt.option('appDir', appDir)
   installDir = path.resolve(installDir)
+  linuxBinDir = path.join(installDir, "bin")
+  linuxShareDir = paht.join(installDir, "share", appFileName)
 
   cjsxConfig =
     glob_to_multiple:
@@ -204,7 +205,7 @@ module.exports = (grunt) ->
   grunt.initConfig
     pkg: grunt.file.readJSON('package.json')
 
-    nylasGruntConfig: {appDir, appName, symbolsDir, buildDir, contentsDir, installDir, shellAppDir}
+    nylasGruntConfig: {appDir, productName, appFileName, symbolsDir, buildDir, contentsDir, installDir, shellAppDir, linuxBinDir, linuxShareDir}
 
     docsOutputDir: 'docs/output'
 
@@ -387,8 +388,7 @@ module.exports = (grunt) ->
 
   else if process.platform is "linux"
     ciTasks.push('mkdeb')
-    # Only works on Fedora build machines
-    # ciTasks.push('mkrpm') if process.platform is 'linux'
+    ciTasks.push('mkrpm')
 
   else if process.platform is "win32"
     ciTasks.push('create-windows-installer:installer')

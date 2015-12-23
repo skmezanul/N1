@@ -12,9 +12,9 @@ fullVersion = null
 module.exports = (grunt) ->
   {cp, spawn, rm} = require('./task-helpers')(grunt)
 
-  appName = -> grunt.config.get('nylasGruntConfig.appName')
-  dmgName = -> "#{appName().split('.')[0]}.dmg"
-  zipName = -> "#{appName().split('.')[0]}.zip"
+  productName = -> grunt.config.get('nylasGruntConfig.productName')
+  dmgName = -> "#{productName().split('.')[0]}.dmg"
+  zipName = -> "#{productName().split('.')[0]}.zip"
   winReleasesName = -> "RELEASES"
   winSetupName = -> "Nylas N1Setup.exe"
   winNupkgName = -> "nylas-#{packageVersion}-full.nupkg"
@@ -39,7 +39,7 @@ module.exports = (grunt) ->
 
     buildDir = grunt.config.get('nylasGruntConfig.buildDir')
     new Promise (resolve, reject) ->
-      appToRun = path.join(buildDir, appName())
+      appToRun = path.join(buildDir, productName())
       scriptToRun = "./build/run-build-and-send-screenshot.scpt"
       spawn
         cmd: "osascript"
@@ -146,7 +146,7 @@ module.exports = (grunt) ->
       uploadPromises = []
       if process.platform is 'darwin'
         uploadPromises.push uploadToS3(dmgName(), "#{fullVersion}/#{process.platform}/#{process.arch}/N1.dmg")
-        uploadPromises.push uploadZipToS3(appName(), "#{fullVersion}/#{process.platform}/#{process.arch}/N1.zip")
+        uploadPromises.push uploadZipToS3(productName(), "#{fullVersion}/#{process.platform}/#{process.arch}/N1.zip")
 
       else if process.platform is 'win32'
         uploadPromises.push uploadToS3("installer/"+winReleasesName(), "#{fullVersion}/#{process.platform}/#{process.arch}/RELEASES")
@@ -160,7 +160,7 @@ module.exports = (grunt) ->
           if path.extname(file) is '.deb'
             uploadPromises.push uploadToS3(file, "#{fullVersion}/#{process.platform}/#{process.arch}/N1.deb")
           if path.extname(file) is '.rpm'
-            uploadPromises.push uploadToS3(file, "#{fullVersion}/#{process.platform}/#{process.arch}/N1.rpm")
+            uploadPromises.push uploadToS3(file, "#{fullVersion}/#{process.platform}/#{process.arch}/#{path.basename(file)}")
 
       else
         grunt.fail.fatal "Unsupported platform: '#{process.platform}'"
