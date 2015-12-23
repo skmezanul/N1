@@ -14,7 +14,7 @@ module.exports = (grunt) ->
     appFileName = grunt.config.get('nylasGruntConfig.appFileName')
 
     # Default: Nylas
-    productName = grunt.config.get('nylasGruntConfig.productName')
+    appName = grunt.config.get('nylasGruntConfig.appName')
 
     # Default: /tmp/nylas-build
     buildDir = grunt.config.get('nylasGruntConfig.buildDir')
@@ -41,7 +41,7 @@ module.exports = (grunt) ->
     rm rpmDir
     mkdir rpmDir
 
-    templateData = {name, version, description, iconName, linuxBinDir, linuxShareDir, contentsDir, productName, appFileName}
+    templateData = {name, version, buildDir, description, iconName, linuxBinDir, linuxShareDir, contentsDir, appName, appFileName}
 
     linuxResourcesPath = path.join('build', 'resources', 'linux')
     # This populates nylas.spec

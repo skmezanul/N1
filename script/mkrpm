@@ -13,7 +13,7 @@ ARCH=`uname -m`
 
 rpmdev-setuptree
 
-cp -r "$CONTENTS_DIR/*" "$RPM_BUILD_ROOT/BUILD"
+cp -r "$CONTENTS_DIR/"* "$RPM_BUILD_ROOT/BUILD"
 cp -r "$BUILD_DIRECTORY/icons" "$RPM_BUILD_ROOT/BUILD"
 cp "$SPEC_FILE" "$RPM_BUILD_ROOT/SPECS"
 cp ./N1.sh "$RPM_BUILD_ROOT/BUILD"

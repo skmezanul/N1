@@ -6,11 +6,11 @@ Promise = require("bluebird")
 module.exports = (grunt) ->
   {spawn, rm} = require('./task-helpers')(grunt)
 
-  productName = -> grunt.config.get('nylasGruntConfig.productName')
-  dmgName = -> "#{productName().split('.')[0]}.dmg"
+  appName = -> grunt.config.get('nylasGruntConfig.appName')
+  dmgName = -> "#{appName().split('.')[0]}.dmg"
   buildDir = -> grunt.config.get('nylasGruntConfig.buildDir')
   dmgPath = -> path.join(buildDir(), dmgName())
-  appDir = -> path.join(buildDir(), grunt.config.get('nylasGruntConfig.productName'))
+  appDir = -> path.join(buildDir(), grunt.config.get('nylasGruntConfig.appName'))
 
   getDmgExecutable = ->
     new Promise (resolve, reject) ->
@@ -39,8 +39,8 @@ module.exports = (grunt) ->
           "--window-pos", "200", "120",
           "--window-size", "800", "400",
           "--icon-size", "100",
-          "--icon", productName(), "200", "190",
-          "--hide-extension", productName(),
+          "--icon", appName(), "200", "190",
+          "--hide-extension", appName(),
           "--app-drop-link", "600", "185",
           dmgPath()
           appDir(),

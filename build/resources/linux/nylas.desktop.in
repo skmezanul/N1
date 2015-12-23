@@ -1,11 +1,11 @@
 [Desktop Entry]
-Name=<%= productName %>
+Name=<%= appName %>
 Comment=<%= description %>
-GenericName=<%= productName %>
+GenericName=<%= appName %>
 Exec=<%= linuxShareDir %>/<%= appFileName %> %U
 Icon=<%= iconName %>
 Type=Application
 StartupNotify=true
-StartupWMClass=<%= productName %>
+StartupWMClass=<%= appName %>
 Categories=GNOME;GTK;Utility;EmailClient;Development;
 MimeType=text/plain;x-scheme-handler/mailto;x-scheme-handler/nylas;

@@ -1,7 +1,6 @@
-_ = require 'underscore'
 fs = require 'fs'
-os = require 'os'
 path = require 'path'
+os = require 'os'
 babelOptions = require '../static/babelrc'
 
 # This is the main Gruntfile that manages building N1 distributions.
@@ -41,6 +40,7 @@ babelOptions = require '../static/babelrc'
 # installDir = /usr/local OR $INSTALL_PREFIX
 # binDir     = /usr/local/bin
 # shareDir   = /usr/local/share/nylas
+_ = require 'underscore'
 
 packageJson = require '../package.json'
 
@@ -70,7 +70,7 @@ module.exports = (grunt) ->
 
   [major, minor, patch] = packageJson.version.split('.')
   tmpDir = os.tmpdir()
-  productName = packageJson.productName
+  appName = if process.platform is 'darwin' then 'Nylas N1.app' else 'Nylas'
   appFileName = packageJson.name
   buildDir = grunt.option('build-dir') ? path.join(tmpDir, 'nylas-build')
   buildDir = path.resolve(buildDir)
@@ -80,22 +80,18 @@ module.exports = (grunt) ->
   electronDownloadDir = path.join(home, '.nylas', 'electron')
 
   symbolsDir = path.join(buildDir, 'Atom.breakpad.syms')
+  shellAppDir = path.join(buildDir, appName)
   if process.platform is 'win32'
-    shellAppDir = path.join(buildDir, productName)
     contentsDir = shellAppDir
     appDir = path.join(shellAppDir, 'resources', 'app')
-    installDir ?= path.join(process.env.ProgramFiles, productName)
+    installDir ?= path.join(process.env.ProgramFiles, appName)
     killCommand = 'taskkill /F /IM nylas.exe'
   else if process.platform is 'darwin'
-    shellAppDir = path.join(buildDir, productName)
     contentsDir = path.join(shellAppDir, 'Contents')
     appDir = path.join(contentsDir, 'Resources', 'app')
-    installDir ?= path.join('/Applications', productName)
+    installDir ?= path.join('/Applications', appName)
     killCommand = 'pkill -9 Nylas'
   else
-    # We don't use the productName because spaces in paths are annoying on
-    # linux
-    shellAppDir = path.join(buildDir, appFileName)
     contentsDir = shellAppDir
     appDir = path.join(shellAppDir, 'resources', 'app')
     installDir ?= process.env.INSTALL_PREFIX ? '/usr/local'
@@ -104,7 +100,7 @@ module.exports = (grunt) ->
   grunt.option('appDir', appDir)
   installDir = path.resolve(installDir)
   linuxBinDir = path.join(installDir, "bin")
-  linuxShareDir = paht.join(installDir, "share", appFileName)
+  linuxShareDir = path.join(installDir, "share", appFileName)
 
   cjsxConfig =
     glob_to_multiple:
@@ -205,7 +201,7 @@ module.exports = (grunt) ->
   grunt.initConfig
     pkg: grunt.file.readJSON('package.json')
 
-    nylasGruntConfig: {appDir, productName, appFileName, symbolsDir, buildDir, contentsDir, installDir, shellAppDir, linuxBinDir, linuxShareDir}
+    nylasGruntConfig: {appDir, appName, appFileName, symbolsDir, buildDir, contentsDir, installDir, shellAppDir, linuxBinDir, linuxShareDir}
 
     docsOutputDir: 'docs/output'
 
