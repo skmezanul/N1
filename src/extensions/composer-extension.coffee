@@ -111,6 +111,6 @@ class ComposerExtension extends ContenteditableExtension
   ```
   ###
   @finalizeSessionBeforeSending: (session) ->
-    return
+    return Promise.resolve(session)
 
 module.exports = ComposerExtension

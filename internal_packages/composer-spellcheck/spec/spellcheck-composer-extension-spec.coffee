@@ -27,7 +27,8 @@ describe "SpellcheckComposerExtension", ->
         changes:
           add: jasmine.createSpy('add')
 
-      SpellcheckComposerExtension.finalizeSessionBeforeSending(session)
-      expect(session.changes.add).toHaveBeenCalledWith(body: initialHTML)
+      waitsForPromise ->
+        SpellcheckComposerExtension.finalizeSessionBeforeSending(session).then ->
+          expect(session.changes.add).toHaveBeenCalledWith(body: initialHTML)
 
 module.exports = SpellcheckComposerExtension

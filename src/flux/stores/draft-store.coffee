@@ -470,9 +470,9 @@ class DraftStore
     # we `trigger`, we'll briefly display the wrong version of the draft
     # as if it was sending.
 
-    @sessionForClientId(draftClientId).then (session) =>
-      @_runExtensionsBeforeSend(session)
-
+    @sessionForClientId(draftClientId)
+    .then(@_runExtensionsBeforeSend)
+    .then (session) =>
       # Immediately save any pending changes so we don't save after
       # sending
       #
@@ -484,7 +484,6 @@ class DraftStore
       # committed to the Database since we'll look them up again just
       # before send.
       session.changes.commit(force: true, noSyncback: true).then =>
-
         # We unfortunately can't give the SendDraftTask the raw draft JSON
         # data because there may still be pending tasks (like a
         # {FileUploadTask}) that will continue to update the draft data.
@@ -505,10 +504,10 @@ class DraftStore
     NylasEnv.getWindowType() is "composer"
 
   # Give third-party plugins an opportunity to sanitize draft data
-  _runExtensionsBeforeSend: (session) ->
-    for extension in @extensions()
-      continue unless extension.finalizeSessionBeforeSending
-      extension.finalizeSessionBeforeSending(session)
+  _runExtensionsBeforeSend: (session) =>
+    Promise.each @extensions(), (ext) ->
+      ext.finalizeSessionBeforeSending(session)
+    .then -> return Promise.resolve(session)
 
   _onRemoveFile: ({file, messageClientId}) =>
     @sessionForClientId(messageClientId).then (session) ->
