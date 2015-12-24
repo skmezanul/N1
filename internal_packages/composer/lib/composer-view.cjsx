@@ -89,7 +89,7 @@ class ComposerView extends React.Component
     @_deleteDraftIfEmpty()
     usub() for usub in @_usubs
 
-  componentDidUpdate: =>
+  componentDidUpdate: (prevProps, prevState) =>
     # We want to use a temporary variable instead of putting this into the
     # state. This is because the selection is a transient property that
     # only needs to be applied once. It's not a long-living property of
@@ -97,6 +97,14 @@ class ComposerView extends React.Component
     # re-rendering.
     @_recoveredSelection = null if @_recoveredSelection?
 
+    # If the body changed, let's wait for the editor body to actually get rendered
+    # before applying focus. Since the editor is an InjectedComponent, which gets
+    # rendered asynchronously via an UnsafeComponent, when this function gets
+    # called, the editor hasn't actually finished rendering. The fact that we use
+    # injected components breaks the guarantees of this lifecycle method, so we
+    # need to work around it. See _renderEditor
+    # bodyChanged = @state.body isnt prevState.body
+    return if bodyChanged
     @_applyFieldFocus()
 
   _keymapHandlers: ->
@@ -112,7 +120,7 @@ class ComposerView extends React.Component
     "composer:undo": @undo
     "composer:redo": @redo
 
-  _applyFieldFocus: ->
+  _applyFieldFocus: =>
     if @state.focusedField and @_lastFocusedField isnt @state.focusedField
       @_lastFocusedField = @state.focusedField
       return unless @refs[@state.focusedField]
@@ -123,6 +131,12 @@ class ComposerView extends React.Component
 
       if @state.focusedField is Fields.Body and not @_proxy.draftPristineBody()
         @refs[Fields.Body].focusEditor()
+
+  _composerEditorBodyDidRender: =>
+    shouldFocusBody = (@state.focusedField is Fields.Body and
+                       @_lastFocusedField isnt @state.focusedField)
+
+    @refs[Fields.Body].focusEditor() if shouldFocusBody
 
   componentWillReceiveProps: (newProps) =>
     @_ignoreNextTrigger = false
@@ -324,6 +338,7 @@ class ComposerView extends React.Component
       ref={Fields.Body}
       matching={role: "Composer:Editor"}
       fallback={ComposerEditor}
+      onComponentDidRender={@_applyFieldFocus}
       requiredMethods={[
         'focusEditor'
         'getCurrentSelection'
