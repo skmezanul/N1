@@ -35,7 +35,7 @@
     "grunt-markdown": "^0.7.0",
     "grunt-peg": "~1.1.0",
     "grunt-shell": "~0.3.1",
-    "handlebars": "^3.0.2",
+    "handlebars": "^4.6.0",
     "harmony-collections": "git+https://github.com/Benvie/harmony-collections.git#0adbd738fccecd88cdd45b68077a718bcf7f3e3b",
     "highlight.js": "^8.8.0",
     "json-front-matter": "^1.0.0",
