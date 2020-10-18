@@ -43,7 +43,7 @@
     "meta-marked": "^0.3.3",
     "minidump": "~0.8",
     "moment": "^2.10",
-    "npm": "3.3.10",
+    "npm": "5.0.1",
     "rcedit": "~0.3.0",
     "request": "^2.64",
     "rimraf": "~2.2.2",
