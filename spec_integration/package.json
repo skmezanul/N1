@@ -11,9 +11,9 @@
   "license": "GPL-3.0",
   "dependencies": {
     "bluebird": "^3.0.5",
-    "babel-core": "^5.8.21",
+    "babel-core": "^6.10.4",
     "jasmine": "^2.3.2",
-    "spectron": "^0.34.1",
+    "spectron": "^1.37.0",
     "chalk": "^1.1"
   }
 }
