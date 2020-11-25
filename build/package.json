@@ -37,7 +37,7 @@
     "grunt-shell": "~0.3.1",
     "handlebars": "^3.0.2",
     "harmony-collections": "git+https://github.com/Benvie/harmony-collections.git#0adbd738fccecd88cdd45b68077a718bcf7f3e3b",
-    "highlight.js": "^8.8.0",
+    "highlight.js": "^9.18.2",
     "json-front-matter": "^1.0.0",
     "legal-eagle": "~0.9.0",
     "meta-marked": "^0.3.3",
