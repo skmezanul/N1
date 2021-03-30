@@ -31,7 +31,7 @@
     "grunt-download-electron": "^2.1",
     "grunt-electron-installer": "^1.0",
     "grunt-eslint": "^17.3.1",
-    "grunt-lesslint": "0.13.0",
+    "grunt-lesslint": "1.1.2",
     "grunt-markdown": "^0.7.0",
     "grunt-peg": "~1.1.0",
     "grunt-shell": "~0.3.1",
